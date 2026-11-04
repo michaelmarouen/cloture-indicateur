@@ -1,0 +1,5 @@
+{
+  "name": "cloture-indicateur",
+  "owner": { "name": "michaelmarouen" },
+  "plugins": [{ "name": "cloture-indicateur", "source": "./" }]
+}
