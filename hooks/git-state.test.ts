@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { computeVerdict } from './git-state'
+import { computeVerdict, headline, parseChecker, tone } from './git-state'
 import type { Run } from './git-state'
 
 function fake(opts: { status?: string; upstream?: boolean; counts?: string; stash?: string }): Run {
@@ -41,4 +41,14 @@ test('SANS_REMOTE', async () => {
 test('HORS_GIT', async () => {
   const run: Run = async () => ({ exitCode: 128, stdout: '', stderr: 'not a repo' })
   expect((await computeVerdict(run)).kind).toBe('HORS_GIT')
+})
+
+test('checker JSON is mapped, garbage is refused', async () => {
+  const v = parseChecker('{"kind":"NON_COMMITE","dirty":3,"ahead":0,"stash":1,"branch":"main","worktrees":2}')
+  expect(v?.dirty).toBe(3)
+  expect(v?.worktrees).toBe(2)
+  expect(parseChecker('not json')).toBe(null)
+  expect(parseChecker('{"kind":"INVENTE"}')).toBe(null)
+  expect(tone(v!)).toBe('stop')
+  expect(headline({ kind: 'PROPRE', dirty: 0, ahead: 0, stash: 0, branch: 'main', worktrees: 0 })).toBe('OK POUR FERMER')
 })

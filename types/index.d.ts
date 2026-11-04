@@ -6,7 +6,10 @@ export type ClotureVerdict = {
   ahead: number
   stash: number
   branch: string
+  worktrees: number
 }
+
+export type ClotureTone = 'ok' | 'stop' | 'warn'
 
 declare module 'claude-code' {
   interface PluginState {

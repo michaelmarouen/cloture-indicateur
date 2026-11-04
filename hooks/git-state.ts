@@ -1,4 +1,4 @@
-import type { ClotureVerdict } from '../types'
+import type { ClotureKind, ClotureTone, ClotureVerdict } from '../types'
 
 export type Run = (
   argv: readonly string[],
@@ -17,7 +17,7 @@ export function countEntries(stdout: string): number {
 }
 
 export async function computeVerdict(run: Run): Promise<ClotureVerdict> {
-  const empty = { dirty: 0, ahead: 0, stash: 0, branch: '' }
+  const empty = { dirty: 0, ahead: 0, stash: 0, branch: '', worktrees: 0 }
   try {
     const inside = await run(['git', 'rev-parse', '--is-inside-work-tree'])
     if (inside.exitCode !== 0) return { kind: 'HORS_GIT', ...empty }
@@ -38,7 +38,7 @@ export async function computeVerdict(run: Run): Promise<ClotureVerdict> {
       ahead = counts.exitCode === 0 ? Number(parts[1]) || 0 : 0
     }
 
-    const base = { dirty, ahead, stash, branch }
+    const base = { dirty, ahead, stash, branch, worktrees: 0 }
     if (dirty > 0) return { kind: 'NON_COMMITE', ...base }
     if (!hasUpstream) return { kind: 'SANS_REMOTE', ...base }
     if (ahead > 0) return { kind: 'NON_POUSSE', ...base }
@@ -48,22 +48,58 @@ export async function computeVerdict(run: Run): Promise<ClotureVerdict> {
   }
 }
 
-export function describe(v: ClotureVerdict): string {
+const KINDS: readonly ClotureKind[] = ['PROPRE', 'NON_COMMITE', 'NON_POUSSE', 'SANS_REMOTE', 'HORS_GIT', 'ERREUR']
+
+// Output of `cloture_check.py --git-only DIR` (the optional source of truth).
+export function parseChecker(stdout: string): ClotureVerdict | null {
+  try {
+    const o = JSON.parse(stdout)
+    if (!KINDS.includes(o.kind)) return null
+    return {
+      kind: o.kind,
+      dirty: Number(o.dirty) || 0,
+      ahead: Number(o.ahead) || 0,
+      stash: Number(o.stash) || 0,
+      branch: typeof o.branch === 'string' ? o.branch : '',
+      worktrees: Number(o.worktrees) || 0,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function tone(v: ClotureVerdict): ClotureTone {
+  if (v.kind === 'PROPRE') return 'ok'
+  if (v.kind === 'HORS_GIT') return 'warn'
+  return 'stop'
+}
+
+export function headline(v: ClotureVerdict): string {
+  const t = tone(v)
+  if (t === 'ok') return 'OK POUR FERMER'
+  if (t === 'warn') return 'OK COTE GIT'
+  return 'NE PAS FERMER'
+}
+
+export function reason(v: ClotureVerdict): string {
   const facts: string[] = []
   if (v.dirty > 0) facts.push(`${v.dirty} non commite(s)`)
+  if (v.worktrees > 0) facts.push(`${v.worktrees} worktree(s) sale(s)`)
   if (v.ahead > 0) facts.push(`${v.ahead} non pousse(s)`)
   if (v.kind === 'SANS_REMOTE') facts.push('sans remote/amont')
-  if (v.stash > 0) facts.push(`${v.stash} stash`)
+  if (v.stash > 0) facts.push(`${v.stash} stash a verifier`)
   switch (v.kind) {
     case 'PROPRE':
-      return v.stash > 0
-        ? `OK POUR FERMER (depot propre, ${v.stash} stash a verifier)`
-        : 'OK POUR FERMER (depot propre et pousse)'
+      return v.stash > 0 ? facts.join(', ') : 'depot propre et pousse'
     case 'HORS_GIT':
-      return 'OK POUR FERMER cote git (dossier hors depot : rien a pousser)'
+      return 'dossier hors depot : rien a pousser, verifie tes fichiers'
     case 'ERREUR':
-      return 'NE PAS FERMER : etat git illisible'
+      return 'etat git illisible'
     default:
-      return `NE PAS FERMER : ${facts.join(', ')}`
+      return facts.join(', ')
   }
+}
+
+export function describe(v: ClotureVerdict): string {
+  return `${headline(v)} : ${reason(v)}`
 }
