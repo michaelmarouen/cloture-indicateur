@@ -22,16 +22,19 @@ export async function computeVerdict(run: Run): Promise<ClotureVerdict> {
     const inside = await run(['git', 'rev-parse', '--is-inside-work-tree'])
     if (inside.exitCode !== 0) return { kind: 'HORS_GIT', ...empty }
 
-    const status = await run(['git', 'status', '--porcelain=v1', '-z', '--untracked-files=normal'])
+    const [status, branchOut, stashOut, upstream] = await Promise.all([
+      run(['git', 'status', '--porcelain=v1', '-z', '--untracked-files=normal']),
+      run(['git', 'rev-parse', '--abbrev-ref', 'HEAD']),
+      run(['git', 'stash', 'list']),
+      run(['git', 'rev-parse', '--abbrev-ref', '@{u}']),
+    ])
     if (status.exitCode !== 0) return { kind: 'ERREUR', ...empty }
     const dirty = countEntries(status.stdout)
+    const branch = branchOut.stdout.trim()
+    const stash = stashOut.stdout.split('\n').filter(Boolean).length
 
-    const branch = (await run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()
-    const stash = (await run(['git', 'stash', 'list'])).stdout.split('\n').filter(Boolean).length
-
-    const upstream = await run(['git', 'rev-parse', '--abbrev-ref', '@{u}'])
     let ahead = 0
-    let hasUpstream = upstream.exitCode === 0
+    const hasUpstream = upstream.exitCode === 0
     if (hasUpstream) {
       const counts = await run(['git', 'rev-list', '--left-right', '--count', '@{u}...HEAD'])
       const parts = counts.stdout.trim().split(/\s+/)
@@ -102,4 +105,15 @@ export function reason(v: ClotureVerdict): string {
 
 export function describe(v: ClotureVerdict): string {
   return `${headline(v)} : ${reason(v)}`
+}
+
+export const POLL_MS = 30_000
+export const MAX_AGE_MS = 120_000
+
+// A tick (every POLL_MS) recomputes while the verdict is not green, so a commit or push made
+// outside the session shows up; once green it only keeps a slow refresh. A write tool forces it.
+export function shouldRefresh(kind: ClotureKind | null, ageMs: number, isDirty: boolean): boolean {
+  if (isDirty || kind === null) return true
+  if (kind === 'PROPRE' || kind === 'HORS_GIT') return ageMs > MAX_AGE_MS
+  return ageMs >= POLL_MS
 }

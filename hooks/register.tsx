@@ -2,14 +2,13 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { ClotureVerdict } from '../types'
-import { computeVerdict, describe, headline, parseChecker, reason, tone } from './git-state'
+import { POLL_MS, computeVerdict, describe, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
 const verdict = atom({ plugin: 'cloture-indicateur', key: 'verdict' } as const, null)
 const isHidden = atom({ plugin: 'cloture-indicateur', key: 'isHidden' } as const, false)
 
 // A turn can only change the repo through these; anything else skips the recompute.
 const WRITERS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
-const MAX_AGE_MS = 120_000
 const COLORS = { ok: 'green', stop: 'red', warn: 'yellow' } as const
 
 let lastAt = 0
@@ -50,9 +49,19 @@ async function refresh($: EngineInterface) {
   }
 }
 
+async function tick($: EngineInterface) {
+  const v = (await read($, verdict)) as ClotureVerdict | null
+  const age = (await $.clock.now()) - lastAt
+  if (!isBusy && shouldRefresh(v?.kind ?? null, age, isDirty)) {
+    isDirty = false
+    await refresh($)
+  }
+}
+
 export const register: Register = on => {
   on('session.start', ($, e, next) => {
     $.clock.after(0, () => void refresh($))
+    $.clock.every(POLL_MS, () => void tick($))
     return next(e)
   })
 
@@ -62,11 +71,7 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    const age = (await $.clock.now()) - lastAt
-    if (isDirty || age > MAX_AGE_MS) {
-      isDirty = false
-      $.clock.after(0, () => void refresh($))
-    }
+    $.clock.after(0, () => void tick($))
     return next(e)
   })
 

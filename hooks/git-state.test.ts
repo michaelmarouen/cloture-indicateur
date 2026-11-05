@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { computeVerdict, headline, parseChecker, tone } from './git-state'
+import { computeVerdict, headline, parseChecker, shouldRefresh, tone } from './git-state'
 import type { Run } from './git-state'
 
 function fake(opts: { status?: string; upstream?: boolean; counts?: string; stash?: string }): Run {
@@ -51,4 +51,13 @@ test('checker JSON is mapped, garbage is refused', async () => {
   expect(parseChecker('{"kind":"INVENTE"}')).toBe(null)
   expect(tone(v!)).toBe('stop')
   expect(headline({ kind: 'PROPRE', dirty: 0, ahead: 0, stash: 0, branch: 'main', worktrees: 0 })).toBe('OK POUR FERMER')
+})
+
+test('polls every 30s while not green, slowly once green', async () => {
+  expect(shouldRefresh('NON_COMMITE', 10_000, false)).toBe(false)
+  expect(shouldRefresh('NON_COMMITE', 30_000, false)).toBe(true)
+  expect(shouldRefresh('PROPRE', 60_000, false)).toBe(false)
+  expect(shouldRefresh('PROPRE', 130_000, false)).toBe(true)
+  expect(shouldRefresh('PROPRE', 1_000, true)).toBe(true)
+  expect(shouldRefresh(null, 0, false)).toBe(true)
 })

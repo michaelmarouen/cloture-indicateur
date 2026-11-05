@@ -9,7 +9,7 @@ Au-dessus du prompt, un bandeau affiche l'etat git du depot de la session :
 - `NE PAS FERMER : N non commite(s), N non pousse(s), sans remote/amont, N stash` : il reste du travail a sauver.
 - `OK POUR FERMER cote git` : le dossier n'est pas un depot git (rien a pousser, verifie tes fichiers toi-meme).
 
-Le calcul se refait au demarrage de la session, puis a la fin d'un tour seulement si un outil qui peut modifier le depot a tourne (Bash, Edit, Write, outils MCP) ou si le dernier calcul a plus de 2 minutes. Il tourne en minuteur : il ne retarde pas la fin du tour. Le bandeau est vert (OK), rouge (NE PAS FERMER) ou jaune (hors depot). Une ligne de statut reprend le verdict, et un toast
+Le calcul se refait au demarrage de la session, puis toutes les 30 secondes tant que le verdict n'est pas vert (un commit ou un push fait dans un terminal est vu sans attendre la fin d'un tour), et toutes les 2 minutes une fois vert ou hors depot ; un outil qui peut modifier le depot (Bash, Edit, Write, outils MCP) force aussi un recalcul. Il tourne en minuteur : il ne retarde pas la fin du tour. Le bandeau est vert (OK), rouge (NE PAS FERMER) ou jaune (hors depot). Une ligne de statut reprend le verdict, et un toast
 apparait quand le depot redevient propre. Le verdict est **par depot** : une autre session qui travaille dans le meme depot
 peut avoir des changements non commites qui s'affichent aussi chez toi.
 
