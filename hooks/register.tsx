@@ -1,11 +1,14 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { ClotureVerdict } from '../types'
+import type { ClotureBase, ClotureVerdict } from '../types'
+import { buildMessage, canAsk, parseBase } from './base'
 import { POLL_MS, computeVerdict, describe, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
 const verdict = atom({ plugin: 'cloture-indicateur', key: 'verdict' } as const, null)
 const isHidden = atom({ plugin: 'cloture-indicateur', key: 'isHidden' } as const, false)
+const baseAtom = atom({ plugin: 'cloture-indicateur', key: 'base' } as const, null)
+const isSent = atom({ plugin: 'cloture-indicateur', key: 'isSent' } as const, false)
 
 // A turn can only change the repo through these; anything else skips the recompute.
 const WRITERS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
@@ -29,6 +32,26 @@ async function viaChecker($: EngineInterface, cwd: string): Promise<ClotureVerdi
   }
 }
 
+// The base session's id comes from the marker in this session's first messages.
+async function findBase($: EngineInterface) {
+  if ((await read($, baseAtom)) !== null) return
+  const texts = (await $.session.messages()).filter(m => m.role === 'user').slice(0, 3).map(m => m.text)
+  const found = parseBase(texts)
+  if (found) await update($, baseAtom, () => found)
+}
+
+async function askBase($: EngineInterface, base: ClotureBase, v: ClotureVerdict) {
+  const text = buildMessage(base, v, await $.session.cwd())
+  let sent = await $.session.send({ to: { sessionId: base.id }, text })
+  if (!sent.isDelivered) sent = await $.session.send({ to: base.id, text })
+  if (sent.isDelivered) {
+    await update($, isSent, () => true)
+    $.ui.toast(`Message envoye a la session de base${base.baseTitle ? ` « ${base.baseTitle} »` : ''}`)
+  } else {
+    $.ui.toast(`Envoi impossible : ${sent.reason}`)
+  }
+}
+
 async function refresh($: EngineInterface) {
   if (isBusy) return
   isBusy = true
@@ -40,6 +63,7 @@ async function refresh($: EngineInterface) {
     lastAt = await $.clock.now()
     if (previous && JSON.stringify(previous) === JSON.stringify(next)) return
     await update($, verdict, () => next)
+    if (next.kind === 'PROPRE') await update($, isSent, () => false)
     $.ui.status(`cloture: ${describe(next)}`)
     if (previous && previous.kind !== 'PROPRE' && next.kind === 'PROPRE') {
       $.ui.toast('Depot propre : tu peux fermer cette session')
@@ -50,6 +74,7 @@ async function refresh($: EngineInterface) {
 }
 
 async function tick($: EngineInterface) {
+  await findBase($)
   const v = (await read($, verdict)) as ClotureVerdict | null
   const age = (await $.clock.now()) - lastAt
   if (!isBusy && shouldRefresh(v?.kind ?? null, age, isDirty)) {
@@ -83,6 +108,9 @@ export const register: Register = on => {
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const color = COLORS[tone(v)]
+    const base = (await read($, baseAtom)) as ClotureBase | null
+    const sent = await read($, isSent)
+    const isAskable = canAsk(v, base)
 
     return (
       <Box>
@@ -93,6 +121,13 @@ export const register: Register = on => {
           {reason(v)} [{v.branch || 'hors depot'}]{' '}
         </Text>
         <Text dimColor>(verdict par depot, autres sessions possibles) </Text>
+        {isAskable && base ? (
+          <Button
+            key="ask"
+            label={sent ? 'Renvoyer a la base' : 'Demander commit+push a la base'}
+            onPress={() => askBase($, base, v)}
+          />
+        ) : null}{' '}
         <Button key="hide" label="Masquer" onPress={() => update($, isHidden, () => true)} />
       </Box>
     )

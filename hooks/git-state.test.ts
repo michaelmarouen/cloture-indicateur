@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { computeVerdict, headline, parseChecker, shouldRefresh, tone } from './git-state'
 import type { Run } from './git-state'
+import { buildMessage, canAsk, parseBase } from './base'
 
 function fake(opts: { status?: string; upstream?: boolean; counts?: string; stash?: string }): Run {
   return async argv => {
@@ -60,4 +61,31 @@ test('polls every 30s while not green, slowly once green', async () => {
   expect(shouldRefresh('PROPRE', 130_000, false)).toBe(true)
   expect(shouldRefresh('PROPRE', 1_000, true)).toBe(true)
   expect(shouldRefresh(null, 0, false)).toBe(true)
+})
+
+const DIRTY = { kind: 'NON_COMMITE', dirty: 3, ahead: 0, stash: 0, branch: 'main', worktrees: 0 } as const
+
+test('base marker is read from the first messages', async () => {
+  const b = parseBase(['bonjour', 'CLOTURE-BASE: local_44edfc59-2914 | Fichier Python 2700 Mo de Windows | Reprise : mod indicateur de cloture'])
+  expect(b?.id).toBe('local_44edfc59-2914')
+  expect(b?.baseTitle).toBe('Fichier Python 2700 Mo de Windows')
+  expect(b?.title).toBe('Reprise : mod indicateur de cloture')
+  expect(parseBase(['CLOTURE-BASE: local_abc'])?.baseTitle).toBe('')
+  expect(parseBase(['pas de marqueur'])).toBe(null)
+})
+
+test('button only when the repo has work to save and a base is known', async () => {
+  const base = { id: 'local_x', baseTitle: '', title: '' }
+  expect(canAsk(DIRTY, base)).toBe(true)
+  expect(canAsk(DIRTY, null)).toBe(false)
+  expect(canAsk({ ...DIRTY, kind: 'PROPRE', dirty: 0 }, base)).toBe(false)
+  expect(canAsk({ ...DIRTY, kind: 'HORS_GIT', dirty: 0 }, base)).toBe(false)
+})
+
+test('the message names the reprise, the repo and the ask', async () => {
+  const m = buildMessage({ id: 'local_x', baseTitle: 'B', title: 'Reprise : mod indicateur de cloture' }, DIRTY, 'D:/Dev/perso/x')
+  expect(m).toContain('Reprise : mod indicateur de cloture')
+  expect(m).toContain('D:/Dev/perso/x (branche main)')
+  expect(m).toContain('3 fichier(s) non commite(s)')
+  expect(m).toContain('commit puis push')
 })

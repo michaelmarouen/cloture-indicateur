@@ -30,6 +30,19 @@ claude plugin install cloture-indicateur --marketplace michaelmarouen/cloture-in
 Dans l'application de bureau, `/plugin` n'existe pas : clique sur +, puis Plugins, Add marketplace avec
 `michaelmarouen/cloture-indicateur`, puis Add plugin. Recharge ensuite avec `/reload-plugins` ou ouvre une nouvelle session.
 
+## Bouton « Demander commit+push a la base » (sessions de reprise)
+
+Dans une session de reprise, quand le depot a des fichiers non commites ou non pousses, un bouton envoie un message clair
+a la session de base : nom de la reprise, depot, branche, nombre de fichiers, et la demande de commit puis push.
+
+Le mod ne peut pas deviner quelle est la session de base : la session qui lance la reprise doit l'ecrire dans le **premier message** :
+
+```
+CLOTURE-BASE: local_<id de la session de base> | <titre de la session de base> | <titre de la reprise>
+```
+
+Les deux titres sont facultatifs. Sans ce marqueur, le bouton n'apparait pas. Le mod essaie d'abord `{ sessionId }`, puis l'id comme adresse.
+
 ## Source unique (optionnel)
 
 Si le fichier `~/.claude/scripts/cloture_check.py` existe et accepte `--git-only <dossier>` (il renvoie un JSON `kind`, `dirty`, `ahead`, `stash`, `branch`, `worktrees`), le mod l'utilise comme source de verite et compte aussi les worktrees. Sinon, ou s'il echoue, une logique git integree prend le relais (sans worktrees).
