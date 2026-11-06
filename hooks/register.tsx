@@ -1,19 +1,23 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { ClotureBase, ClotureVerdict } from '../types'
+import type { ClotureBase, ClotureSibling, ClotureVerdict } from '../types'
 import { buildMessage, canAsk, parseBase } from './base'
+import { buildSiblingMessage, makeLabel, parseEntry, repoKey, siblings } from './registry'
 import { POLL_MS, computeVerdict, describe, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
 const verdict = atom({ plugin: 'cloture-indicateur', key: 'verdict' } as const, null)
 const isHidden = atom({ plugin: 'cloture-indicateur', key: 'isHidden' } as const, false)
 const baseAtom = atom({ plugin: 'cloture-indicateur', key: 'base' } as const, null)
+const siblingsAtom = atom({ plugin: 'cloture-indicateur', key: 'siblings' } as const, [])
+const isSiblingsSent = atom({ plugin: 'cloture-indicateur', key: 'isSiblingsSent' } as const, false)
 const isSent = atom({ plugin: 'cloture-indicateur', key: 'isSent' } as const, false)
 
 // A turn can only change the repo through these; anything else skips the recompute.
 const WRITERS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const COLORS = { ok: 'green', stop: 'red', warn: 'yellow' } as const
 
+let myLabel = ''
 let lastAt = 0
 let isBusy = false
 let isDirty = true
@@ -52,6 +56,50 @@ async function askBase($: EngineInterface, base: ClotureBase, v: ClotureVerdict)
   }
 }
 
+// Registry: one small file per live session, so a session finds the others on its repo.
+async function registryDir($: EngineInterface): Promise<string | null> {
+  const home = await $.env.get('USERPROFILE')
+  return home ? `${home}/.claude/cloture-registry` : null
+}
+
+async function syncRegistry($: EngineInterface, v: ClotureVerdict) {
+  const dir = await registryDir($)
+  if (!dir || v.kind === 'HORS_GIT' || v.kind === 'ERREUR') {
+    await update($, siblingsAtom, () => [])
+    return
+  }
+  const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { timeoutMs: 5000 })
+  const repo = repoKey(top.stdout)
+  if (top.exitCode !== 0 || !repo) return
+  const id = await $.session.id()
+  const now = await $.clock.now()
+  if (!myLabel) {
+    myLabel = makeLabel((await $.session.messages()).filter(m => m.role === 'user').map(m => m.text), repo)
+  }
+  await $.fs.write(`${dir}/${id}.json`, JSON.stringify({ id, repo, label: myLabel, updatedAt: now }))
+  const entries = []
+  for (const f of await $.fs.list(dir)) {
+    if (f.kind !== 'file' || !f.name.endsWith('.json')) continue
+    const entry = parseEntry(String(await $.fs.read(`${dir}/${f.name}`)))
+    if (entry) entries.push(entry)
+  }
+  const others = siblings(entries, id, repo, now)
+  await update($, siblingsAtom, () => others)
+  if (others.length === 0) await update($, isSiblingsSent, () => false)
+}
+
+async function warnSiblings($: EngineInterface, others: ClotureSibling[], v: ClotureVerdict) {
+  const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { timeoutMs: 5000 })
+  const text = buildSiblingMessage(myLabel, v, top.stdout.trim() || (await $.session.cwd()))
+  let delivered = 0
+  for (const s of others) {
+    const sent = await $.session.send({ to: { sessionId: s.id }, text })
+    if (sent.isDelivered) delivered += 1
+  }
+  if (delivered > 0) await update($, isSiblingsSent, () => true)
+  $.ui.toast(`${delivered}/${others.length} session(s) prévenue(s)`)
+}
+
 async function refresh($: EngineInterface) {
   if (isBusy) return
   isBusy = true
@@ -61,6 +109,7 @@ async function refresh($: EngineInterface) {
     const next =
       (await viaChecker($, cwd)) ?? (await computeVerdict(argv => $.process.run(argv, { timeoutMs: 10000 })))
     lastAt = await $.clock.now()
+    await syncRegistry($, next)
     if (previous && JSON.stringify(previous) === JSON.stringify(next)) return
     await update($, verdict, () => next)
     if (next.kind === 'PROPRE') await update($, isSent, () => false)
@@ -113,6 +162,9 @@ export const register: Register = on => {
     const base = (await read($, baseAtom)) as ClotureBase | null
     const sent = await read($, isSent)
     const isAskable = canAsk(v, base)
+    const others = (await read($, siblingsAtom)) as ClotureSibling[]
+    const sentSiblings = await read($, isSiblingsSent)
+    const isWarnable = t === 'stop' && others.length > 0
 
     return (
       <Box flexDirection="column" borderStyle="round" borderColor={color} paddingX={1}>
@@ -126,7 +178,21 @@ export const register: Register = on => {
         {t === 'stop' ? (
           <Text dimColor>Verdict par dépôt : une autre session du même dépôt compte aussi.</Text>
         ) : null}
+        {isWarnable ? (
+          <Text dimColor>
+            Autres sessions sur ce dépôt : {others.map(o => o.label || o.id.slice(0, 8)).slice(0, 3).join(', ')}
+            {others.length > 3 ? ` (+${others.length - 3})` : ''}
+          </Text>
+        ) : null}
         <Box gap={2} flexWrap="wrap">
+          {isWarnable ? (
+            <Button
+              key="warn"
+              variant={isAskable ? 'secondary' : 'primary'}
+              label={`${sentSiblings ? 'Reprévenir' : 'Prévenir'} les ${others.length} autre(s) session(s) du dépôt`}
+              onPress={() => warnSiblings($, others, v)}
+            />
+          ) : null}
           {isAskable && base ? (
             <Button
               key="ask"

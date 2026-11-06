@@ -43,6 +43,14 @@ CLOTURE-BASE: local_<id de la session de base> | <titre de la session de base> |
 
 Les deux titres sont facultatifs. Sans ce marqueur, le bouton n'apparait pas. Le mod essaie d'abord `{ sessionId }`, puis l'id comme adresse.
 
+## Bouton « Prévenir les autres sessions du dépôt »
+
+Chaque session ecrit une petite fiche (identifiant, depot, libelle, heure) dans `~/.claude/cloture-registry/`. Quand le depot a des
+changements a sauver et que d'autres sessions **recentes (moins de 10 minutes)** travaillent sur le meme depot, le bandeau les liste
+et propose un bouton qui leur envoie un message clair : depot, branche, nombre de fichiers, demande de commit puis push
+(ou d'ignorer le message si ces changements ne sont pas les leurs). Ne marche que si le mod est actif dans ces autres sessions.
+Les fiches ne sont pas effacees : une fiche de plus de 10 minutes est simplement ignoree.
+
 ## Source unique (optionnel)
 
 Si le fichier `~/.claude/scripts/cloture_check.py` existe et accepte `--git-only <dossier>` (il renvoie un JSON `kind`, `dirty`, `ahead`, `stash`, `branch`, `worktrees`), le mod l'utilise comme source de verite et compte aussi les worktrees. Sinon, ou s'il echoue, une logique git integree prend le relais (sans worktrees).

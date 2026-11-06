@@ -15,6 +15,7 @@ const BAND = {
 
 const stop = { kind: 'NON_COMMITE', dirty: 3, ahead: 1, stash: 0, branch: 'main', worktrees: 0 }
 const clean = { kind: 'PROPRE', dirty: 0, ahead: 0, stash: 0, branch: 'main', worktrees: 0 }
+const others = [{ id: 's1', label: 'Autre session' }]
 const base = { id: 'local_x', baseTitle: 'Fichier Python', title: 'Reprise : mod' }
 
 function seed(values: Record<string, unknown>) {
@@ -23,9 +24,10 @@ function seed(values: Record<string, unknown>) {
 
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`band with work to save, on ${surface}`, async ($, on) => {
-    on('state.get', seed({ verdict: stop, isHidden: false, base, isSent: false }))
+    on('state.get', seed({ verdict: stop, isHidden: false, base, isSent: false, siblings: others, isSiblingsSent: false }))
     const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface })
 
+    expect(await ui.find({ type: 'Button', key: 'warn' })).toBeTruthy()
     expect((await ui.find({ type: 'Text', text: /NE PAS FERMER/ }))?.text).toContain('NE PAS FERMER')
     expect(await ui.find({ type: 'Text', text: /3 fichier|3 non commité/ })).toBeTruthy()
     expect(await ui.find({ type: 'Button', key: 'ask' })).toBeTruthy()
@@ -34,9 +36,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 
   test(`clean band has no ask button, on ${surface}`, async ($, on) => {
-    on('state.get', seed({ verdict: clean, isHidden: false, base, isSent: false }))
+    on('state.get', seed({ verdict: clean, isHidden: false, base, isSent: false, siblings: others, isSiblingsSent: false }))
     const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface })
 
+    expect(await ui.find({ type: 'Button', key: 'warn' })).toBeFalsy()
     expect(await ui.find({ type: 'Text', text: /OK POUR FERMER/ })).toBeTruthy()
     expect(await ui.find({ type: 'Button', key: 'ask' })).toBeFalsy()
     await ui.unmount()

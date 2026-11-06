@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { computeVerdict, headline, parseChecker, shouldRefresh, tone } from './git-state'
 import type { Run } from './git-state'
 import { buildMessage, canAsk, parseBase } from './base'
+import { FRESH_MS, buildSiblingMessage, labelFrom, makeLabel, parseEntry, repoKey, siblings } from './registry'
 
 function fake(opts: { status?: string; upstream?: boolean; counts?: string; stash?: string }): Run {
   return async argv => {
@@ -88,4 +89,25 @@ test('the message names the reprise, the repo and the ask', async () => {
   expect(m).toContain('D:/Dev/perso/x (branche main)')
   expect(m).toContain('3 fichier(s) non commité(s)')
   expect(m).toContain('commit puis push')
+})
+
+const T0 = 1_000_000_000
+
+test('siblings: same repo, fresh, not me', async () => {
+  const E = (id: string, repo: string, ageMs: number) => ({ id, repo, label: id, updatedAt: T0 - ageMs })
+  const out = siblings([E('me', 'r', 0), E('a', 'r', 1000), E('old', 'r', FRESH_MS + 1), E('other', 'x', 0), E('a', 'r', 5)], 'me', 'r', T0)
+  expect(out.map(s => s.id)).toEqual(['a'])
+})
+
+test('registry helpers', async () => {
+  expect(repoKey('D:\\Dev\\Perso\\X\n')).toBe('d:/dev/perso/x')
+  expect(parseEntry('nope')).toBe(null)
+  expect(parseEntry('{"id":"a","repo":"r","updatedAt":5}')?.label).toBe('')
+  expect(labelFrom(['', 'Reprise : mod\nsuite'])).toBe('Reprise : mod')
+  expect(buildSiblingMessage('R', DIRTY, 'd:/x')).toContain('3 fichier(s) non commité(s)')
+})
+
+test('label: repo name, snippet only when meaningful', async () => {
+  expect(makeLabel(['This session is being continued from a previous conversation'], 'd:/dev/perso/chifoumi')).toBe('chifoumi')
+  expect(makeLabel(['Reprise : mod'], 'd:/dev/perso/x')).toBe('x : Reprise : mod')
 })
