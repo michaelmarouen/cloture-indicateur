@@ -11,7 +11,7 @@ export type ClotureVerdict = {
 
 export type ClotureBase = { id: string; baseTitle: string; title: string }
 
-export type ClotureSibling = { id: string; label: string }
+export type ClotureSibling = { id: string; label: string; mode: string }
 
 export type ClotureNote = { ok: boolean; text: string }
 

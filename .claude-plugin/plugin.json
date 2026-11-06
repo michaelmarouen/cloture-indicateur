@@ -1,6 +1,6 @@
 {
   "name": "cloture-indicateur",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Indicateur de cloture par session : etat git du depot (propre, non commite, non pousse, sans remote).",
   "types": "./types/index.d.ts"
 }

@@ -15,7 +15,7 @@ const BAND = {
 
 const stop = { kind: 'NON_COMMITE', dirty: 3, ahead: 1, stash: 0, branch: 'main', worktrees: 0 }
 const clean = { kind: 'PROPRE', dirty: 0, ahead: 0, stash: 0, branch: 'main', worktrees: 0 }
-const others = [{ id: 's1', label: 'Autre session' }]
+const others = [{ id: 's1', label: 'Autre session', mode: 'default' }]
 const base = { id: 'local_x', baseTitle: 'Fichier Python', title: 'Reprise : mod' }
 
 function seed(values: Record<string, unknown>) {

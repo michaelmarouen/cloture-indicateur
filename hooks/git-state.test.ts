@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { checkerScript, computeVerdict, headline, parseChecker, shouldRefresh, tone } from './git-state'
 import type { Run } from './git-state'
 import { buildMessage, canAsk, parseBase } from './base'
-import { FRESH_MS, buildSiblingMessage, labelFrom, makeLabel, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
+import { FRESH_MS, buildSiblingMessage, labelFrom, makeLabel, parseEntry, repoKey, sendAll, siblings, summarize, classifyNotice, modeMismatch } from './registry'
 
 function fake(opts: { status?: string; upstream?: boolean; counts?: string; stash?: string }): Run {
   return async argv => {
@@ -123,7 +123,7 @@ test('checker script path has no backslash to swallow', async () => {
 })
 
 test('a refused or thrown send is reported with its reason, never silent', async () => {
-  const targets = [{ id: 'a', label: '' }, { id: 'b', label: '' }, { id: 'c', label: '' }]
+  const targets = [{ id: 'a', label: '', mode: '' }, { id: 'b', label: '', mode: '' }, { id: 'c', label: '', mode: '' }]
   const out = await sendAll(targets, async id => {
     if (id === 'a') return { isDelivered: true }
     if (id === 'b') return { isDelivered: false, reason: 'recipient gone' }
@@ -138,4 +138,20 @@ test('a refused or thrown send is reported with its reason, never silent', async
 
 test('a closed session (updatedAt 0) is not a sibling', async () => {
   expect(siblings([{ id: 'x', repo: '', label: '', updatedAt: 0 }, { id: 'y', repo: 'r', label: '', updatedAt: 0 }], 'me', 'r', T0)).toEqual([])
+})
+
+test('engine delivery notices are understood', async () => {
+  const held = classifyNotice('[Cross-session delivery notice] 1 message was held by that session. NOT delivered: its Claude has not seen it.')
+  expect(held?.ok).toBe(false)
+  expect(held?.isFinal).toBe(false)
+  expect(classifyNotice('[Cross-session delivery notice] it was approved and released to that session.')?.ok).toBe(true)
+  expect(classifyNotice('[Cross-session delivery notice] denied by the recipient user. Not delivered')?.isFinal).toBe(true)
+  expect(classifyNotice('[Cross-session delivery notice] not approved before expiry. Not delivered to that session')?.text).toContain('expiré')
+  expect(classifyNotice('un message quelconque')).toBe(null)
+})
+
+test('permission modes that differ are flagged, unknown ones are not', async () => {
+  const o = [{ id: 'a', label: '', mode: 'default' }, { id: 'b', label: '', mode: 'acceptEdits' }, { id: 'c', label: '', mode: '' }]
+  expect(modeMismatch('default', o).map(s => s.id)).toEqual(['b'])
+  expect(modeMismatch('', o)).toEqual([])
 })

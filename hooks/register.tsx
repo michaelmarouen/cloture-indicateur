@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { ClotureBase, ClotureNote, ClotureSibling, ClotureVerdict } from '../types'
 import { buildMessage, canAsk, parseBase } from './base'
-import { BEAT_MS, buildSiblingMessage, makeLabel, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
+import { BEAT_MS, buildSiblingMessage, classifyNotice, makeLabel, modeMismatch, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
 import { TICK_MS, WAIT_MAX_MS, checkerScript, computeVerdict, describe, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
 const verdict = atom({ plugin: 'cloture-indicateur', key: 'verdict' } as const, null)
@@ -19,6 +19,8 @@ const isSent = atom({ plugin: 'cloture-indicateur', key: 'isSent' } as const, fa
 const WRITERS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const COLORS = { ok: 'green', stop: 'red', warn: 'yellow' } as const
 
+let myMode = ''
+let lastSendAt = 0
 let lastBeat = 0
 let waitingSince = 0
 let myLabel = ''
@@ -62,7 +64,7 @@ async function findBase($: EngineInterface) {
 
 async function askBase($: EngineInterface, base: ClotureBase, v: ClotureVerdict) {
   const text = buildMessage(base, v, await $.session.cwd())
-  const { delivered, failures } = await sendAll([{ id: base.id, label: base.baseTitle }], async id => {
+  const { delivered, failures } = await sendAll([{ id: base.id, label: base.baseTitle, mode: '' }], async id => {
     const first = await $.session.send({ to: { sessionId: id }, text })
     return first.isDelivered ? first : await $.session.send({ to: id, text })
   })
@@ -95,7 +97,7 @@ async function syncRegistry($: EngineInterface, v: ClotureVerdict) {
   if (!myLabel) {
     myLabel = makeLabel((await $.session.messages()).filter(m => m.role === 'user').map(m => m.text), repo)
   }
-  await $.fs.write(`${dir}/${id}.json`, JSON.stringify({ id, repo, label: myLabel, updatedAt: now }))
+  await $.fs.write(`${dir}/${id}.json`, JSON.stringify({ id, repo, label: myLabel, updatedAt: now, mode: myMode }))
   lastBeat = now
   const entries = []
   for (const f of await $.fs.list(dir)) {
@@ -109,16 +111,42 @@ async function syncRegistry($: EngineInterface, v: ClotureVerdict) {
 }
 
 async function warnSiblings($: EngineInterface, others: ClotureSibling[], v: ClotureVerdict) {
+  const now = await $.clock.now()
+  if (now - lastSendAt < 15_000) {
+    $.ui.toast('Attends quelques secondes avant de renvoyer.')
+    return
+  }
+  lastSendAt = now
   const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { timeoutMs: 5000 })
-  const text = buildSiblingMessage(myLabel, v, top.stdout.trim() || (await $.session.cwd()))
+  const stamp = `envoi de ${new Date(now).toTimeString().slice(0, 8)}`
+  const text = buildSiblingMessage(myLabel, v, top.stdout.trim() || (await $.session.cwd()), stamp)
   const { delivered, failures } = await sendAll(others, id => $.session.send({ to: { sessionId: id }, text }))
   const note = summarize(others.length, delivered, failures)
-  await update($, sendNote, () => ({ ok: note.ok, text: note.text }))
+  const mismatched = modeMismatch(myMode, others)
+  const warning = mismatched.length > 0 ? ` | ${mismatched.length} en mode différent de ${myMode} : message possiblement retenu, à approuver dans cette session` : ''
+  await update($, sendNote, () => ({ ok: note.ok && mismatched.length === 0, text: note.text + warning }))
   if (delivered > 0) {
     await update($, isSiblingsSent, () => true)
     await startWaiting($)
   }
-  $.ui.toast(note.text)
+  $.ui.toast(note.text + warning)
+}
+
+// The engine's own delivery notices (held, approved, denied, expired, dropped) replace the optimistic note.
+async function onNotice($: EngineInterface, text: string) {
+  const n = classifyNotice(text)
+  if (!n) return
+  await update($, sendNote, () => ({ ok: n.ok, text: n.text }))
+  if (n.isFinal && !n.ok) await stopWaiting($)
+  $.ui.toast(n.text)
+}
+
+// A mode learned after the entry was written is published at once, not a minute later.
+async function setMode($: EngineInterface, mode: string | undefined) {
+  if (!mode || mode === myMode) return
+  myMode = mode
+  const v = (await read($, verdict)) as ClotureVerdict | null
+  if (v) await syncRegistry($, v)
 }
 
 // A closed session says so: its entry is rewritten with updatedAt 0, which nobody counts as live.
@@ -126,7 +154,7 @@ async function tombstone($: EngineInterface) {
   const dir = await registryDir($)
   if (!dir) return
   const id = await $.session.id()
-  await $.fs.write(`${dir}/${id}.json`, JSON.stringify({ id, repo: '', label: '', updatedAt: 0 }))
+  await $.fs.write(`${dir}/${id}.json`, JSON.stringify({ id, repo: '', label: '', updatedAt: 0, mode: myMode }))
 }
 
 async function refresh($: EngineInterface) {
@@ -180,6 +208,28 @@ export const register: Register = on => {
     return next(e)
   })
 
+  on('classic.UserPromptSubmit', async ($, e, next) => {
+    await setMode($, (e as { permission_mode?: string }).permission_mode)
+    return next(e)
+  })
+
+  on('classic.Stop', async ($, e, next) => {
+    await setMode($, (e as { permission_mode?: string }).permission_mode)
+    return next(e)
+  })
+
+  on('session.receive', async ($, e, next) => {
+    await onNotice($, e.text)
+    return next(e)
+  })
+
+  on('session.append', async ($, e, next) => {
+    const content = (e.message as { content?: unknown }).content
+    const text = typeof content === 'string' ? content : JSON.stringify(content ?? '')
+    if (text.includes('Cross-session delivery notice')) await onNotice($, text)
+    return next(e)
+  })
+
   on('session.end', async ($, e, next) => {
     await tombstone($)
     return next(e)
@@ -212,6 +262,7 @@ export const register: Register = on => {
     const isWarnable = t === 'stop' && others.length > 0
     const waiting = await read($, isWaiting)
     const note = (await read($, sendNote)) as ClotureNote | null
+    const mismatched = modeMismatch(myMode, others)
 
     return (
       <Box gap={1} flexWrap="wrap">
@@ -221,6 +272,9 @@ export const register: Register = on => {
         <Text>· {reason(v)}</Text>
         <Text dimColor>· {v.branch || 'hors dépôt'}</Text>
         {waiting && t === 'stop' ? <Text color="yellow">· ⏳ en attente des autres sessions</Text> : null}
+        {isWarnable && mismatched.length > 0 ? (
+          <Text color="yellow">· ⚠ {mismatched.length} session(s) en mode différent : message à approuver chez elle</Text>
+        ) : null}
         {note ? <Text color={note.ok ? 'green' : 'red'}>· {note.ok ? '✓' : '✗'} {note.text}</Text> : null}
         {isWarnable ? (
           <Button
