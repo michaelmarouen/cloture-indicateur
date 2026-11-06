@@ -86,6 +86,6 @@ test('the message names the reprise, the repo and the ask', async () => {
   const m = buildMessage({ id: 'local_x', baseTitle: 'B', title: 'Reprise : mod indicateur de cloture' }, DIRTY, 'D:/Dev/perso/x')
   expect(m).toContain('Reprise : mod indicateur de cloture')
   expect(m).toContain('D:/Dev/perso/x (branche main)')
-  expect(m).toContain('3 fichier(s) non commite(s)')
+  expect(m).toContain('3 fichier(s) non commité(s)')
   expect(m).toContain('commit puis push')
 })

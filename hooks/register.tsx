@@ -64,6 +64,7 @@ async function refresh($: EngineInterface) {
     if (previous && JSON.stringify(previous) === JSON.stringify(next)) return
     await update($, verdict, () => next)
     if (next.kind === 'PROPRE') await update($, isSent, () => false)
+    if (previous?.kind !== next.kind) await update($, isHidden, () => false)
     $.ui.status(`cloture: ${describe(next)}`)
     if (previous && previous.kind !== 'PROPRE' && next.kind === 'PROPRE') {
       $.ui.toast('Depot propre : tu peux fermer cette session')
@@ -107,28 +108,35 @@ export const register: Register = on => {
     }
 
     const { Box, Button, Text } = $.ui.resolve(e)
-    const color = COLORS[tone(v)]
+    const t = tone(v)
+    const color = COLORS[t]
     const base = (await read($, baseAtom)) as ClotureBase | null
     const sent = await read($, isSent)
     const isAskable = canAsk(v, base)
 
     return (
-      <Box>
-        <Text color={color} bold>
-          ● {headline(v)}{' '}
-        </Text>
-        <Text>
-          {reason(v)} [{v.branch || 'hors depot'}]{' '}
-        </Text>
-        <Text dimColor>(verdict par depot, autres sessions possibles) </Text>
-        {isAskable && base ? (
-          <Button
-            key="ask"
-            label={sent ? 'Renvoyer a la base' : 'Demander commit+push a la base'}
-            onPress={() => askBase($, base, v)}
-          />
-        ) : null}{' '}
-        <Button key="hide" label="Masquer" onPress={() => update($, isHidden, () => true)} />
+      <Box flexDirection="column" borderStyle="round" borderColor={color} paddingX={1}>
+        <Box gap={2} flexWrap="wrap">
+          <Text color={color} bold>
+            ● {headline(v)}
+          </Text>
+          <Text dimColor>{v.branch ? `branche ${v.branch}` : 'hors dépôt'}</Text>
+        </Box>
+        <Text>{reason(v)}</Text>
+        {t === 'stop' ? (
+          <Text dimColor>Verdict par dépôt : une autre session du même dépôt compte aussi.</Text>
+        ) : null}
+        <Box gap={2} flexWrap="wrap">
+          {isAskable && base ? (
+            <Button
+              key="ask"
+              variant="primary"
+              label={sent ? 'Renvoyer la demande à la base' : 'Demander commit + push à la base'}
+              onPress={() => askBase($, base, v)}
+            />
+          ) : null}
+          <Button key="hide" label="Masquer" onPress={() => update($, isHidden, () => true)} />
+        </Box>
       </Box>
     )
   })

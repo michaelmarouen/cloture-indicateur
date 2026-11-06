@@ -20,13 +20,13 @@ export function canAsk(v: ClotureVerdict | null, base: ClotureBase | null): bool
 export function buildMessage(base: ClotureBase, v: ClotureVerdict, cwd: string): string {
   const who = base.title ? `« ${base.title} »` : 'une session de reprise'
   const facts: string[] = []
-  if (v.dirty > 0) facts.push(`${v.dirty} fichier(s) non commite(s)`)
+  if (v.dirty > 0) facts.push(`${v.dirty} fichier(s) non commité(s)`)
   if (v.worktrees > 0) facts.push(`${v.worktrees} worktree(s) sale(s)`)
-  if (v.ahead > 0) facts.push(`${v.ahead} commit(s) non pousse(s)`)
+  if (v.ahead > 0) facts.push(`${v.ahead} commit(s) non poussé(s)`)
   return [
     `[cloture-indicateur] Demande de la session de reprise ${who}.`,
-    `Depot : ${cwd}${v.branch ? ` (branche ${v.branch})` : ''}`,
-    `Etat : ${facts.join(', ')}.`,
+    `Dépôt : ${cwd}${v.branch ? ` (branche ${v.branch})` : ''}`,
+    `État : ${facts.join(', ')}.`,
     'Demande : commit puis push de ces changements. Commit par pathspec explicite, `git diff --cached --stat` avant, jamais --force ni --no-verify. Dis-moi quand c\'est fait.',
   ].join('\n')
 }

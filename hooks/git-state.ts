@@ -80,24 +80,24 @@ export function tone(v: ClotureVerdict): ClotureTone {
 export function headline(v: ClotureVerdict): string {
   const t = tone(v)
   if (t === 'ok') return 'OK POUR FERMER'
-  if (t === 'warn') return 'OK COTE GIT'
+  if (t === 'warn') return 'OK CÔTÉ GIT'
   return 'NE PAS FERMER'
 }
 
 export function reason(v: ClotureVerdict): string {
   const facts: string[] = []
-  if (v.dirty > 0) facts.push(`${v.dirty} non commite(s)`)
+  if (v.dirty > 0) facts.push(`${v.dirty} non commité(s)`)
   if (v.worktrees > 0) facts.push(`${v.worktrees} worktree(s) sale(s)`)
-  if (v.ahead > 0) facts.push(`${v.ahead} non pousse(s)`)
-  if (v.kind === 'SANS_REMOTE') facts.push('sans remote/amont')
-  if (v.stash > 0) facts.push(`${v.stash} stash a verifier`)
+  if (v.ahead > 0) facts.push(`${v.ahead} non poussé(s)`)
+  if (v.kind === 'SANS_REMOTE') facts.push('aucun remote ou amont : rien de sauvegardé en ligne')
+  if (v.stash > 0) facts.push(`${v.stash} stash à vérifier`)
   switch (v.kind) {
     case 'PROPRE':
-      return v.stash > 0 ? facts.join(', ') : 'depot propre et pousse'
+      return v.stash > 0 ? facts.join(', ') : 'dépôt propre et poussé'
     case 'HORS_GIT':
-      return 'dossier hors depot : rien a pousser, verifie tes fichiers'
+      return 'dossier hors dépôt git : rien à pousser, vérifie tes fichiers toi-même'
     case 'ERREUR':
-      return 'etat git illisible'
+      return 'état git illisible'
     default:
       return facts.join(', ')
   }
