@@ -195,45 +195,30 @@ export const register: Register = on => {
     const waiting = await read($, isWaiting)
 
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor={color} paddingX={1}>
-        <Box gap={2} flexWrap="wrap">
-          <Text color={color} bold>
-            ● {headline(v)}
-          </Text>
-          <Text dimColor>{v.branch ? `branche ${v.branch}` : 'hors dépôt'}</Text>
-        </Box>
-        <Text>{reason(v)}</Text>
-        {t === 'stop' ? (
-          <Text dimColor>Verdict par dépôt : une autre session du même dépôt compte aussi.</Text>
-        ) : null}
-        {waiting && t === 'stop' ? (
-          <Text color="yellow">⏳ Demande envoyée : j'attends que les autres sessions commitent et poussent (vérifié toutes les 5 s).</Text>
-        ) : null}
+      <Box gap={1} flexWrap="wrap">
+        <Text color={color} bold>
+          ● {headline(v)}
+        </Text>
+        <Text>· {reason(v)}</Text>
+        <Text dimColor>· {v.branch || 'hors dépôt'}</Text>
+        {waiting && t === 'stop' ? <Text color="yellow">· ⏳ en attente des autres sessions</Text> : null}
         {isWarnable ? (
-          <Text dimColor>
-            Autres sessions sur ce dépôt : {others.map(o => o.label || o.id.slice(0, 8)).slice(0, 3).join(', ')}
-            {others.length > 3 ? ` (+${others.length - 3})` : ''}
-          </Text>
+          <Button
+            key="warn"
+            variant={isAskable ? 'secondary' : 'primary'}
+            label={`${sentSiblings ? 'Reprévenir' : 'Prévenir'} ${others.length} session(s)`}
+            onPress={() => warnSiblings($, others, v)}
+          />
         ) : null}
-        <Box gap={2} flexWrap="wrap">
-          {isWarnable ? (
-            <Button
-              key="warn"
-              variant={isAskable ? 'secondary' : 'primary'}
-              label={`${sentSiblings ? 'Reprévenir' : 'Prévenir'} les ${others.length} autre(s) session(s) du dépôt`}
-              onPress={() => warnSiblings($, others, v)}
-            />
-          ) : null}
-          {isAskable && base ? (
-            <Button
-              key="ask"
-              variant="primary"
-              label={sent ? 'Renvoyer la demande à la base' : 'Demander commit + push à la base'}
-              onPress={() => askBase($, base, v)}
-            />
-          ) : null}
-          <Button key="hide" label="Masquer" onPress={() => update($, isHidden, () => true)} />
-        </Box>
+        {isAskable && base ? (
+          <Button
+            key="ask"
+            variant="primary"
+            label={sent ? 'Redemander à la base' : 'Demander à la base'}
+            onPress={() => askBase($, base, v)}
+          />
+        ) : null}
+        <Button key="hide" label="Masquer" onPress={() => update($, isHidden, () => true)} />
       </Box>
     )
   })

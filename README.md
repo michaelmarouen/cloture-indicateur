@@ -67,6 +67,9 @@ Si le fichier `~/.claude/scripts/cloture_check.py` existe et accepte `--git-only
 ```
 claude plugin validate .
 claude plugin test .
+node --test test/e2e-git.test.mjs
 ```
+
+Le second test cree de vrais depots git temporaires (propre, non commite, non pousse, sans remote, stash) et verifie que le mod (et `cloture_check.py` s'il existe) donnent le meme verdict. Il demande Node 22.6 ou plus recent.
 
 Les contributions sont les bienvenues (licence MIT).

@@ -52,6 +52,6 @@ test('waiting line is shown after a request', async ($, on) => {
   on('state.get', seed(waitingSeed))
   const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface: 'terminal' })
 
-  expect(await ui.find({ type: 'Text', text: /j'attends/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /en attente des autres sessions/ })).toBeTruthy()
   await ui.unmount()
 })
