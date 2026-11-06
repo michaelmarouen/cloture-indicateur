@@ -49,6 +49,7 @@ Chaque session ecrit une petite fiche (identifiant, depot, libelle, heure) dans 
 changements a sauver et que d'autres sessions **recentes (moins de 10 minutes)** travaillent sur le meme depot, le bandeau les liste
 et propose un bouton qui leur envoie un message clair : depot, branche, nombre de fichiers, demande de commit puis push
 (ou d'ignorer le message si ces changements ne sont pas les leurs). Ne marche que si le mod est actif dans ces autres sessions.
+Apres un envoi (aux autres sessions ou a la session de base), le bandeau passe en suivi rapide : il revérifie le depot toutes les 5 secondes (10 minutes au plus), affiche « j'attends que les autres sessions commitent et poussent », puis passe au vert avec un toast des que tout est commite et pousse.
 Les fiches ne sont pas effacees : une fiche de plus de 10 minutes est simplement ignoree.
 
 ## Source unique (optionnel)

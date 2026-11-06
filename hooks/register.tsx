@@ -4,19 +4,21 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { ClotureBase, ClotureSibling, ClotureVerdict } from '../types'
 import { buildMessage, canAsk, parseBase } from './base'
 import { buildSiblingMessage, makeLabel, parseEntry, repoKey, siblings } from './registry'
-import { POLL_MS, computeVerdict, describe, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
+import { TICK_MS, WAIT_MAX_MS, checkerScript, computeVerdict, describe, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
 const verdict = atom({ plugin: 'cloture-indicateur', key: 'verdict' } as const, null)
 const isHidden = atom({ plugin: 'cloture-indicateur', key: 'isHidden' } as const, false)
 const baseAtom = atom({ plugin: 'cloture-indicateur', key: 'base' } as const, null)
 const siblingsAtom = atom({ plugin: 'cloture-indicateur', key: 'siblings' } as const, [])
 const isSiblingsSent = atom({ plugin: 'cloture-indicateur', key: 'isSiblingsSent' } as const, false)
+const isWaiting = atom({ plugin: 'cloture-indicateur', key: 'isWaiting' } as const, false)
 const isSent = atom({ plugin: 'cloture-indicateur', key: 'isSent' } as const, false)
 
 // A turn can only change the repo through these; anything else skips the recompute.
 const WRITERS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const COLORS = { ok: 'green', stop: 'red', warn: 'yellow' } as const
 
+let waitingSince = 0
 let myLabel = ''
 let lastAt = 0
 let isBusy = false
@@ -27,13 +29,25 @@ let isDirty = true
 async function viaChecker($: EngineInterface, cwd: string): Promise<ClotureVerdict | null> {
   const home = await $.env.get('USERPROFILE')
   if (!home) return null
-  const script = `${home}\.claude\scripts\cloture_check.py`
+  const script = checkerScript(home)
   try {
     const r = await $.process.run(['python', '-I', script, '--git-only', cwd], { timeoutMs: 15000 })
     return r.exitCode === 0 ? parseChecker(r.stdout) : null
   } catch {
     return null
   }
+}
+
+// After a request goes out, poll fast until the repo is clean (or WAIT_MAX_MS passes).
+async function startWaiting($: EngineInterface) {
+  waitingSince = await $.clock.now()
+  isDirty = true
+  await update($, isWaiting, () => true)
+}
+
+async function stopWaiting($: EngineInterface) {
+  waitingSince = 0
+  await update($, isWaiting, () => false)
 }
 
 // The base session's id comes from the marker in this session's first messages.
@@ -50,7 +64,8 @@ async function askBase($: EngineInterface, base: ClotureBase, v: ClotureVerdict)
   if (!sent.isDelivered) sent = await $.session.send({ to: base.id, text })
   if (sent.isDelivered) {
     await update($, isSent, () => true)
-    $.ui.toast(`Message envoye a la session de base${base.baseTitle ? ` « ${base.baseTitle} »` : ''}`)
+    await startWaiting($)
+    $.ui.toast(`Message envoyé à la session de base${base.baseTitle ? ` « ${base.baseTitle} »` : ''}`)
   } else {
     $.ui.toast(`Envoi impossible : ${sent.reason}`)
   }
@@ -96,7 +111,10 @@ async function warnSiblings($: EngineInterface, others: ClotureSibling[], v: Clo
     const sent = await $.session.send({ to: { sessionId: s.id }, text })
     if (sent.isDelivered) delivered += 1
   }
-  if (delivered > 0) await update($, isSiblingsSent, () => true)
+  if (delivered > 0) {
+    await update($, isSiblingsSent, () => true)
+    await startWaiting($)
+  }
   $.ui.toast(`${delivered}/${others.length} session(s) prévenue(s)`)
 }
 
@@ -112,7 +130,14 @@ async function refresh($: EngineInterface) {
     await syncRegistry($, next)
     if (previous && JSON.stringify(previous) === JSON.stringify(next)) return
     await update($, verdict, () => next)
-    if (next.kind === 'PROPRE') await update($, isSent, () => false)
+    if (next.kind === 'PROPRE') {
+      await update($, isSent, () => false)
+      await update($, isSiblingsSent, () => false)
+      if (waitingSince > 0) {
+        await stopWaiting($)
+        $.ui.toast('Tout est commité et poussé : tu peux fermer cette session')
+      }
+    }
     if (previous?.kind !== next.kind) await update($, isHidden, () => false)
     $.ui.status(`cloture: ${describe(next)}`)
     if (previous && previous.kind !== 'PROPRE' && next.kind === 'PROPRE') {
@@ -126,8 +151,10 @@ async function refresh($: EngineInterface) {
 async function tick($: EngineInterface) {
   await findBase($)
   const v = (await read($, verdict)) as ClotureVerdict | null
-  const age = (await $.clock.now()) - lastAt
-  if (!isBusy && shouldRefresh(v?.kind ?? null, age, isDirty)) {
+  const now = await $.clock.now()
+  if (waitingSince > 0 && now - waitingSince > WAIT_MAX_MS) await stopWaiting($)
+  const age = now - lastAt
+  if (!isBusy && shouldRefresh(v?.kind ?? null, age, isDirty, waitingSince > 0)) {
     isDirty = false
     await refresh($)
   }
@@ -136,7 +163,7 @@ async function tick($: EngineInterface) {
 export const register: Register = on => {
   on('session.start', ($, e, next) => {
     $.clock.after(0, () => void refresh($))
-    $.clock.every(POLL_MS, () => void tick($))
+    $.clock.every(TICK_MS, () => void tick($))
     return next(e)
   })
 
@@ -165,6 +192,7 @@ export const register: Register = on => {
     const others = (await read($, siblingsAtom)) as ClotureSibling[]
     const sentSiblings = await read($, isSiblingsSent)
     const isWarnable = t === 'stop' && others.length > 0
+    const waiting = await read($, isWaiting)
 
     return (
       <Box flexDirection="column" borderStyle="round" borderColor={color} paddingX={1}>
@@ -177,6 +205,9 @@ export const register: Register = on => {
         <Text>{reason(v)}</Text>
         {t === 'stop' ? (
           <Text dimColor>Verdict par dépôt : une autre session du même dépôt compte aussi.</Text>
+        ) : null}
+        {waiting && t === 'stop' ? (
+          <Text color="yellow">⏳ Demande envoyée : j'attends que les autres sessions commitent et poussent (vérifié toutes les 5 s).</Text>
         ) : null}
         {isWarnable ? (
           <Text dimColor>

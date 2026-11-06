@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { computeVerdict, headline, parseChecker, shouldRefresh, tone } from './git-state'
+import { checkerScript, computeVerdict, headline, parseChecker, shouldRefresh, tone } from './git-state'
 import type { Run } from './git-state'
 import { buildMessage, canAsk, parseBase } from './base'
 import { FRESH_MS, buildSiblingMessage, labelFrom, makeLabel, parseEntry, repoKey, siblings } from './registry'
@@ -110,4 +110,14 @@ test('registry helpers', async () => {
 test('label: repo name, snippet only when meaningful', async () => {
   expect(makeLabel(['This session is being continued from a previous conversation'], 'd:/dev/perso/chifoumi')).toBe('chifoumi')
   expect(makeLabel(['Reprise : mod'], 'd:/dev/perso/x')).toBe('x : Reprise : mod')
+})
+
+test('after a request, polls every 5s until clean', async () => {
+  expect(shouldRefresh('NON_COMMITE', 5_000, false, true)).toBe(true)
+  expect(shouldRefresh('NON_COMMITE', 4_000, false, true)).toBe(false)
+  expect(shouldRefresh('PROPRE', 4_000, false, true)).toBe(false)
+})
+
+test('checker script path has no backslash to swallow', async () => {
+  expect(checkerScript('C:\\Users\\mic')).toBe('C:/Users/mic/.claude/scripts/cloture_check.py')
 })

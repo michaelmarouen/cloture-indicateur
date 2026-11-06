@@ -22,9 +22,11 @@ function seed(values: Record<string, unknown>) {
   return (_: unknown, e: { key: string }) => ({ value: { value: values[e.key], version: 1 } })
 }
 
+const waitingSeed = { verdict: stop, isHidden: false, base, isSent: true, siblings: others, isSiblingsSent: true, isWaiting: true }
+
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`band with work to save, on ${surface}`, async ($, on) => {
-    on('state.get', seed({ verdict: stop, isHidden: false, base, isSent: false, siblings: others, isSiblingsSent: false }))
+    on('state.get', seed({ verdict: stop, isHidden: false, base, isSent: false, siblings: others, isSiblingsSent: false, isWaiting: false }))
     const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface })
 
     expect(await ui.find({ type: 'Button', key: 'warn' })).toBeTruthy()
@@ -36,7 +38,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 
   test(`clean band has no ask button, on ${surface}`, async ($, on) => {
-    on('state.get', seed({ verdict: clean, isHidden: false, base, isSent: false, siblings: others, isSiblingsSent: false }))
+    on('state.get', seed({ verdict: clean, isHidden: false, base, isSent: false, siblings: others, isSiblingsSent: false, isWaiting: false }))
     const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface })
 
     expect(await ui.find({ type: 'Button', key: 'warn' })).toBeFalsy()
@@ -45,3 +47,11 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 }
+
+test('waiting line is shown after a request', async ($, on) => {
+  on('state.get', seed(waitingSeed))
+  const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface: 'terminal' })
+
+  expect(await ui.find({ type: 'Text', text: /j'attends/ })).toBeTruthy()
+  await ui.unmount()
+})

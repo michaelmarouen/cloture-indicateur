@@ -107,13 +107,22 @@ export function describe(v: ClotureVerdict): string {
   return `${headline(v)} : ${reason(v)}`
 }
 
+export const TICK_MS = 5_000
 export const POLL_MS = 30_000
+export const WAIT_POLL_MS = 5_000
+export const WAIT_MAX_MS = 10 * 60_000
 export const MAX_AGE_MS = 120_000
 
 // A tick (every POLL_MS) recomputes while the verdict is not green, so a commit or push made
 // outside the session shows up; once green it only keeps a slow refresh. A write tool forces it.
-export function shouldRefresh(kind: ClotureKind | null, ageMs: number, isDirty: boolean): boolean {
+export function shouldRefresh(kind: ClotureKind | null, ageMs: number, isDirty: boolean, isWaiting = false): boolean {
   if (isDirty || kind === null) return true
   if (kind === 'PROPRE' || kind === 'HORS_GIT') return ageMs > MAX_AGE_MS
+  if (isWaiting) return ageMs >= WAIT_POLL_MS
   return ageMs >= POLL_MS
+}
+
+// Forward slashes only: in a template literal a lone backslash would swallow the next character.
+export function checkerScript(home: string): string {
+  return `${home.replace(/\\/g, '/')}/.claude/scripts/cloture_check.py`
 }

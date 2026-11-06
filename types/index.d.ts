@@ -17,6 +17,6 @@ export type ClotureTone = 'ok' | 'stop' | 'warn'
 
 declare module 'claude-code' {
   interface PluginState {
-    'cloture-indicateur': { verdict: ClotureVerdict | null; isHidden: boolean; base: ClotureBase | null; isSent: boolean; siblings: ClotureSibling[]; isSiblingsSent: boolean }
+    'cloture-indicateur': { verdict: ClotureVerdict | null; isHidden: boolean; base: ClotureBase | null; isSent: boolean; siblings: ClotureSibling[]; isSiblingsSent: boolean; isWaiting: boolean }
   }
 }
