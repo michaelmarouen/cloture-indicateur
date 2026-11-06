@@ -2,7 +2,9 @@ import type { ClotureSibling, ClotureVerdict } from '../types'
 
 export type Entry = { id: string; repo: string; label: string; updatedAt: number }
 
-export const FRESH_MS = 10 * 60_000
+// A live session rewrites its entry every BEAT_MS; a closed one writes updatedAt 0 and is ignored at once.
+export const FRESH_MS = 3 * 60_000
+export const BEAT_MS = 60_000
 
 export function repoKey(path: string): string {
   return path.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
@@ -54,4 +56,31 @@ export function buildSiblingMessage(myLabel: string, v: ClotureVerdict, repo: st
     `État : ${facts.join(', ')}.`,
     'Si certains de ces changements sont les tiens : commit puis push (pathspec explicite, `git diff --cached --stat` avant, jamais --force ni --no-verify). Sinon ignore ce message.',
   ].join('\n')
+}
+
+export type SendOutcome = { isDelivered: boolean; reason?: string }
+
+// Sends to each target; a refusal OR a throw is a failure with its reason, never silence.
+export async function sendAll(
+  targets: readonly ClotureSibling[],
+  send: (id: string) => Promise<SendOutcome>,
+): Promise<{ delivered: number; failures: string[] }> {
+  let delivered = 0
+  const failures: string[] = []
+  for (const t of targets) {
+    try {
+      const r = await send(t.id)
+      if (r.isDelivered) delivered += 1
+      else failures.push(r.reason || 'refusé')
+    } catch (e) {
+      failures.push(e instanceof Error ? e.message : String(e))
+    }
+  }
+  return { delivered, failures }
+}
+
+export function summarize(total: number, delivered: number, failures: readonly string[]): { ok: boolean; text: string } {
+  if (delivered === total) return { ok: true, text: `${delivered}/${total} session(s) prévenue(s)` }
+  const why = [...new Set(failures)].slice(0, 2).join(' ; ')
+  return { ok: false, text: `${delivered}/${total} session(s) prévenue(s) : ${why}` }
 }

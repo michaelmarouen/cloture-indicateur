@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { checkerScript, computeVerdict, headline, parseChecker, shouldRefresh, tone } from './git-state'
 import type { Run } from './git-state'
 import { buildMessage, canAsk, parseBase } from './base'
-import { FRESH_MS, buildSiblingMessage, labelFrom, makeLabel, parseEntry, repoKey, siblings } from './registry'
+import { FRESH_MS, buildSiblingMessage, labelFrom, makeLabel, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
 
 function fake(opts: { status?: string; upstream?: boolean; counts?: string; stash?: string }): Run {
   return async argv => {
@@ -120,4 +120,22 @@ test('after a request, polls every 5s until clean', async () => {
 
 test('checker script path has no backslash to swallow', async () => {
   expect(checkerScript('C:\\Users\\mic')).toBe('C:/Users/mic/.claude/scripts/cloture_check.py')
+})
+
+test('a refused or thrown send is reported with its reason, never silent', async () => {
+  const targets = [{ id: 'a', label: '' }, { id: 'b', label: '' }, { id: 'c', label: '' }]
+  const out = await sendAll(targets, async id => {
+    if (id === 'a') return { isDelivered: true }
+    if (id === 'b') return { isDelivered: false, reason: 'recipient gone' }
+    throw new Error('socket closed')
+  })
+  expect(out.delivered).toBe(1)
+  expect(out.failures).toEqual(['recipient gone', 'socket closed'])
+  expect(summarize(3, 1, out.failures).ok).toBe(false)
+  expect(summarize(3, 1, out.failures).text).toContain('recipient gone')
+  expect(summarize(2, 2, []).ok).toBe(true)
+})
+
+test('a closed session (updatedAt 0) is not a sibling', async () => {
+  expect(siblings([{ id: 'x', repo: '', label: '', updatedAt: 0 }, { id: 'y', repo: 'r', label: '', updatedAt: 0 }], 'me', 'r', T0)).toEqual([])
 })

@@ -46,11 +46,11 @@ Les deux titres sont facultatifs. Sans ce marqueur, le bouton n'apparait pas. Le
 ## Bouton « Prévenir les autres sessions du dépôt »
 
 Chaque session ecrit une petite fiche (identifiant, depot, libelle, heure) dans `~/.claude/cloture-registry/`. Quand le depot a des
-changements a sauver et que d'autres sessions **recentes (moins de 10 minutes)** travaillent sur le meme depot, le bandeau les liste
+changements a sauver et que d'autres sessions **vivantes** (fiche reecrite chaque minute, ignoree apres 3 minutes ; une session qui se ferme marque sa fiche comme fermee) travaillent sur le meme depot, le bandeau les liste
 et propose un bouton qui leur envoie un message clair : depot, branche, nombre de fichiers, demande de commit puis push
 (ou d'ignorer le message si ces changements ne sont pas les leurs). Ne marche que si le mod est actif dans ces autres sessions.
 Apres un envoi (aux autres sessions ou a la session de base), le bandeau passe en suivi rapide : il revérifie le depot toutes les 5 secondes (10 minutes au plus), affiche « j'attends que les autres sessions commitent et poussent », puis passe au vert avec un toast des que tout est commite et pousse.
-Les fiches ne sont pas effacees : une fiche de plus de 10 minutes est simplement ignoree.
+Le resultat de l'envoi reste affiche sur le bandeau (« ✓ 1/1 session(s) prevenue(s) » ou « ✗ 0/1 ... » avec la raison), et un envoi refuse ou en erreur n'est jamais silencieux. Livre ne veut pas dire lu : l'autre session decide quand agir. Les fiches ne sont pas effacees, juste ignorees quand elles sont perimees.
 
 ## Source unique (optionnel)
 

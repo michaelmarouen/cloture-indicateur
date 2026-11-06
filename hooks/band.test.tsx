@@ -55,3 +55,11 @@ test('waiting line is shown after a request', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /en attente des autres sessions/ })).toBeTruthy()
   await ui.unmount()
 })
+
+test('a failed send stays visible with its reason', async ($, on) => {
+  on('state.get', seed({ verdict: stop, isHidden: false, base: null, isSent: false, siblings: others, isSiblingsSent: false, isWaiting: false, sendNote: { ok: false, text: '0/1 session(s) prévenue(s) : recipient gone' } }))
+  const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface: 'terminal' })
+
+  expect(await ui.find({ type: 'Text', text: /0\/1 session.*recipient gone/ })).toBeTruthy()
+  await ui.unmount()
+})

@@ -1,9 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { ClotureBase, ClotureSibling, ClotureVerdict } from '../types'
+import type { ClotureBase, ClotureNote, ClotureSibling, ClotureVerdict } from '../types'
 import { buildMessage, canAsk, parseBase } from './base'
-import { buildSiblingMessage, makeLabel, parseEntry, repoKey, siblings } from './registry'
+import { BEAT_MS, buildSiblingMessage, makeLabel, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
 import { TICK_MS, WAIT_MAX_MS, checkerScript, computeVerdict, describe, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
 const verdict = atom({ plugin: 'cloture-indicateur', key: 'verdict' } as const, null)
@@ -12,12 +12,14 @@ const baseAtom = atom({ plugin: 'cloture-indicateur', key: 'base' } as const, nu
 const siblingsAtom = atom({ plugin: 'cloture-indicateur', key: 'siblings' } as const, [])
 const isSiblingsSent = atom({ plugin: 'cloture-indicateur', key: 'isSiblingsSent' } as const, false)
 const isWaiting = atom({ plugin: 'cloture-indicateur', key: 'isWaiting' } as const, false)
+const sendNote = atom({ plugin: 'cloture-indicateur', key: 'sendNote' } as const, null)
 const isSent = atom({ plugin: 'cloture-indicateur', key: 'isSent' } as const, false)
 
 // A turn can only change the repo through these; anything else skips the recompute.
 const WRITERS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const COLORS = { ok: 'green', stop: 'red', warn: 'yellow' } as const
 
+let lastBeat = 0
 let waitingSince = 0
 let myLabel = ''
 let lastAt = 0
@@ -60,15 +62,17 @@ async function findBase($: EngineInterface) {
 
 async function askBase($: EngineInterface, base: ClotureBase, v: ClotureVerdict) {
   const text = buildMessage(base, v, await $.session.cwd())
-  let sent = await $.session.send({ to: { sessionId: base.id }, text })
-  if (!sent.isDelivered) sent = await $.session.send({ to: base.id, text })
-  if (sent.isDelivered) {
+  const { delivered, failures } = await sendAll([{ id: base.id, label: base.baseTitle }], async id => {
+    const first = await $.session.send({ to: { sessionId: id }, text })
+    return first.isDelivered ? first : await $.session.send({ to: id, text })
+  })
+  const note = summarize(1, delivered, failures)
+  await update($, sendNote, () => ({ ok: note.ok, text: `base : ${note.text}` }))
+  if (delivered > 0) {
     await update($, isSent, () => true)
     await startWaiting($)
-    $.ui.toast(`Message envoyé à la session de base${base.baseTitle ? ` « ${base.baseTitle} »` : ''}`)
-  } else {
-    $.ui.toast(`Envoi impossible : ${sent.reason}`)
   }
+  $.ui.toast(note.ok ? `Message envoyé à la session de base${base.baseTitle ? ` « ${base.baseTitle} »` : ''}` : `Envoi à la base : ${note.text}`)
 }
 
 // Registry: one small file per live session, so a session finds the others on its repo.
@@ -92,6 +96,7 @@ async function syncRegistry($: EngineInterface, v: ClotureVerdict) {
     myLabel = makeLabel((await $.session.messages()).filter(m => m.role === 'user').map(m => m.text), repo)
   }
   await $.fs.write(`${dir}/${id}.json`, JSON.stringify({ id, repo, label: myLabel, updatedAt: now }))
+  lastBeat = now
   const entries = []
   for (const f of await $.fs.list(dir)) {
     if (f.kind !== 'file' || !f.name.endsWith('.json')) continue
@@ -106,16 +111,22 @@ async function syncRegistry($: EngineInterface, v: ClotureVerdict) {
 async function warnSiblings($: EngineInterface, others: ClotureSibling[], v: ClotureVerdict) {
   const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { timeoutMs: 5000 })
   const text = buildSiblingMessage(myLabel, v, top.stdout.trim() || (await $.session.cwd()))
-  let delivered = 0
-  for (const s of others) {
-    const sent = await $.session.send({ to: { sessionId: s.id }, text })
-    if (sent.isDelivered) delivered += 1
-  }
+  const { delivered, failures } = await sendAll(others, id => $.session.send({ to: { sessionId: id }, text }))
+  const note = summarize(others.length, delivered, failures)
+  await update($, sendNote, () => ({ ok: note.ok, text: note.text }))
   if (delivered > 0) {
     await update($, isSiblingsSent, () => true)
     await startWaiting($)
   }
-  $.ui.toast(`${delivered}/${others.length} session(s) prévenue(s)`)
+  $.ui.toast(note.text)
+}
+
+// A closed session says so: its entry is rewritten with updatedAt 0, which nobody counts as live.
+async function tombstone($: EngineInterface) {
+  const dir = await registryDir($)
+  if (!dir) return
+  const id = await $.session.id()
+  await $.fs.write(`${dir}/${id}.json`, JSON.stringify({ id, repo: '', label: '', updatedAt: 0 }))
 }
 
 async function refresh($: EngineInterface) {
@@ -133,6 +144,7 @@ async function refresh($: EngineInterface) {
     if (next.kind === 'PROPRE') {
       await update($, isSent, () => false)
       await update($, isSiblingsSent, () => false)
+      await update($, sendNote, () => null)
       if (waitingSince > 0) {
         await stopWaiting($)
         $.ui.toast('Tout est commité et poussé : tu peux fermer cette session')
@@ -153,6 +165,7 @@ async function tick($: EngineInterface) {
   const v = (await read($, verdict)) as ClotureVerdict | null
   const now = await $.clock.now()
   if (waitingSince > 0 && now - waitingSince > WAIT_MAX_MS) await stopWaiting($)
+  if (v && now - lastBeat > BEAT_MS && !isBusy) await syncRegistry($, v)
   const age = now - lastAt
   if (!isBusy && shouldRefresh(v?.kind ?? null, age, isDirty, waitingSince > 0)) {
     isDirty = false
@@ -164,6 +177,11 @@ export const register: Register = on => {
   on('session.start', ($, e, next) => {
     $.clock.after(0, () => void refresh($))
     $.clock.every(TICK_MS, () => void tick($))
+    return next(e)
+  })
+
+  on('session.end', async ($, e, next) => {
+    await tombstone($)
     return next(e)
   })
 
@@ -193,6 +211,7 @@ export const register: Register = on => {
     const sentSiblings = await read($, isSiblingsSent)
     const isWarnable = t === 'stop' && others.length > 0
     const waiting = await read($, isWaiting)
+    const note = (await read($, sendNote)) as ClotureNote | null
 
     return (
       <Box gap={1} flexWrap="wrap">
@@ -202,6 +221,7 @@ export const register: Register = on => {
         <Text>· {reason(v)}</Text>
         <Text dimColor>· {v.branch || 'hors dépôt'}</Text>
         {waiting && t === 'stop' ? <Text color="yellow">· ⏳ en attente des autres sessions</Text> : null}
+        {note ? <Text color={note.ok ? 'green' : 'red'}>· {note.ok ? '✓' : '✗'} {note.text}</Text> : null}
         {isWarnable ? (
           <Button
             key="warn"
