@@ -489,18 +489,22 @@ export const register: Register = on => {
     const stale = isStale(o.at, nowMs)
     const repoButtons = (r: ClotureRepo) => {
       const others = (r.sessionIds ?? []).filter(id => id !== me).length
-      const back = (key: string, b: unknown) => (
-        <Box key={`b-${key}`} backgroundColor={pal.btn}>
+      const back = (key: string, b: unknown, tone: string = pal.text ?? pal.ok) => (
+        <Box key={`b-${key}`} borderStyle="round" borderColor={tone} backgroundColor={pal.card} paddingX={1}>
           {b}
         </Box>
       )
       return [
         canPush(r) ? back(`push-${r.name}`, (
-          <Button key={`push-${r.name}`} variant={armedRepo === r.path ? 'primary' : 'secondary'} label={armedRepo === r.path ? `✓ pousser ${r.ah} commit${r.ah > 1 ? 's' : ''} ?` : `↑ ${r.ah} commit${r.ah > 1 ? 's' : ''}`} onPress={() => pushRepo($, r)} />
-        )) : null,
+          <Button key={`push-${r.name}`} plain label={armedRepo === r.path ? `✓ pousser ${r.ah} commit${r.ah > 1 ? 's' : ''} ?` : `↑ ${r.ah} commit${r.ah > 1 ? 's' : ''}`} onPress={() => pushRepo($, r)}>
+            <Text bold color={armedRepo === r.path ? pal.ok : pal.warn}>{armedRepo === r.path ? `✓ pousser ${r.ah} commit${r.ah > 1 ? 's' : ''} ?` : `↑ ${r.ah} commit${r.ah > 1 ? 's' : ''}`}</Text>
+          </Button>
+        ), armedRepo === r.path ? pal.ok : pal.warn) : null,
         r.tone === 'stop' && others > 0 ? back(`warn-${r.name}`, (
-          <Button key={`warn-${r.name}`} variant="secondary" label={`✉ ${others} session${others > 1 ? 's' : ''}`} onPress={() => warnRepo($, r)} />
-        )) : null,
+          <Button key={`warn-${r.name}`} plain label={`✉ ${others} session${others > 1 ? 's' : ''}`} onPress={() => warnRepo($, r)}>
+            <Text bold color={pal.stop}>{`✉ ${others} session${others > 1 ? 's' : ''}`}</Text>
+          </Button>
+        ), pal.stop) : null,
       ]
     }
     // Icon-only buttons; each one's label is a hidden Text shown on hover (scope h-<id>) in the row below.
@@ -547,7 +551,7 @@ export const register: Register = on => {
         </Box>
         <Box gap={1}>
           {tools.map(t => (
-            <Box key={`k-${t.id}`} hover={{ scope: `h-${t.id}` }} backgroundColor={pal.btn}>
+            <Box key={`k-${t.id}`} hover={{ scope: `h-${t.id}` }} borderStyle="round" borderColor={pal.dim ?? pal.text ?? pal.ok} backgroundColor={pal.card} paddingX={1}>
               {t.button}
             </Box>
           ))}

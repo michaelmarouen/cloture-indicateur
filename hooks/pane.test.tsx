@@ -216,7 +216,11 @@ test('dark theme: dim texts get a readable colour and every button has a light b
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   const age = (await ui.find({ type: 'Text', text: /^Lu / })) as { props?: { color?: string } } | null
   expect(age?.props?.color).toBe('#9ca3af')
-  expect(await ui.find({ type: 'Box', key: 'k-view-liste', props: { backgroundColor: '#d1d5db' } })).toBeTruthy()
-  expect(await ui.find({ type: 'Box', key: 'b-push-heretic', props: { backgroundColor: '#d1d5db' } })).toBeTruthy()
+  const chipView = (await ui.find({ type: 'Box', key: 'k-view-liste' })) as { props?: { backgroundColor?: string; borderStyle?: string } } | null
+  expect(chipView?.props?.backgroundColor).toBe('#2a2a2a')
+  expect(chipView?.props?.borderStyle).toBe('round')
+  const chipPush = (await ui.find({ type: 'Box', key: 'b-push-heretic' })) as { props?: { backgroundColor?: string; borderStyle?: string } } | null
+  expect(chipPush?.props?.backgroundColor).toBe('#2a2a2a')
+  expect(chipPush?.props?.borderStyle).toBe('round')
   await ui.unmount()
 })
