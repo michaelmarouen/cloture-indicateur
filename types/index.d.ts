@@ -36,12 +36,13 @@ export type ClotureRepo = {
   upstream: boolean
   files: string[]
   sessions: string[]
+  sessionIds: string[]
 }
 
 export type ClotureOverview = { at: number; repos: ClotureRepo[]; jobsRead: boolean }
 
 declare module 'claude-code' {
   interface PluginState {
-    'cloture-indicateur': { verdict: ClotureVerdict | null; isHidden: boolean; base: ClotureBase | null; isSent: boolean; siblings: ClotureSibling[]; isSiblingsSent: boolean; isWaiting: boolean; sendNote: ClotureNote | null; overview: ClotureOverview | null; view: ClotureView | null; theme: ClotureTheme; isOverviewBusy: boolean; isArmed: boolean; overviewNote: ClotureNote | null }
+    'cloture-indicateur': { verdict: ClotureVerdict | null; isHidden: boolean; base: ClotureBase | null; isSent: boolean; siblings: ClotureSibling[]; isSiblingsSent: boolean; isWaiting: boolean; sendNote: ClotureNote | null; overview: ClotureOverview | null; view: ClotureView | null; theme: ClotureTheme; isOverviewBusy: boolean; isArmed: boolean; overviewNote: ClotureNote | null; tick: number; armedPush: string | null }
   }
 }

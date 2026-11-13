@@ -20,14 +20,14 @@ export function nextTheme(t: ClotureTheme): ClotureTheme {
   return THEMES[(i + 1) % THEMES.length]!.id
 }
 
-export type Palette = { ok: string; stop: string; warn: string; text: string | undefined }
+export type Palette = { ok: string; stop: string; warn: string; text: string | undefined; bg: string | undefined; card: string | undefined }
 
 // auto: the terminal's own named colours (they follow its theme). clair / sombre: fixed colours with
 // enough contrast on a light or a dark background (WCAG AA against white and against #1e1e1e).
 export function palette(t: ClotureTheme): Palette {
-  if (t === 'clair') return { ok: '#15803d', stop: '#b91c1c', warn: '#a16207', text: '#1f2937' }
-  if (t === 'sombre') return { ok: '#4ade80', stop: '#f87171', warn: '#fbbf24', text: '#e5e7eb' }
-  return { ok: 'green', stop: 'red', warn: 'yellow', text: undefined }
+  if (t === 'clair') return { ok: '#15803d', stop: '#b91c1c', warn: '#a16207', text: '#1f2937', bg: '#ffffff', card: '#f3f4f6' }
+  if (t === 'sombre') return { ok: '#4ade80', stop: '#f87171', warn: '#fbbf24', text: '#e5e7eb', bg: '#1e1e1e', card: '#2a2a2a' }
+  return { ok: 'green', stop: 'red', warn: 'yellow', text: undefined, bg: undefined, card: undefined }
 }
 
 type Raw = {
@@ -76,6 +76,7 @@ export function parseOverview(stdout: string, now: number): ClotureOverview | nu
       upstream: Boolean(r.upstream),
       files: (r.blocking ?? []).slice(0, MAX_FILES),
       sessions: r.sessions.map(s => s.title || (s.id ?? '').slice(0, 8)),
+      sessionIds: r.sessions.map(s => s.id ?? '').filter(Boolean),
     }
     repos.push({ ...item, tone: repoTone(item) })
   }
@@ -143,6 +144,36 @@ export function counts(r: ClotureRepo): string {
   if (!r.upstream) bits.push('aucun distant')
   if (bits.length === 0) bits.push('propre et poussé')
   return bits.join(' · ')
+}
+
+export const AUTO_MS = 30_000
+export const STALE_MS = 90_000
+export const PANE_LIVE_MS = 30_000
+export const READY_MIN_GAP_MS = 60_000
+
+export function ageLabel(at: number, now: number): string {
+  const s = Math.max(0, Math.round((now - at) / 1000))
+  if (s < 10) return "à l'instant"
+  if (s < 60) return `il y a ${s} s`
+  return `il y a ${Math.floor(s / 60)} min`
+}
+
+export function isStale(at: number, now: number): boolean {
+  return now - at > STALE_MS
+}
+
+// Only commits can be pushed from the pane: there must be some, and a remote to receive them.
+export function canPush(r: Pick<ClotureRepo, 'ah' | 'upstream'>): boolean {
+  return r.ah > 0 && r.upstream
+}
+
+export function statusText(a: Answer): string {
+  return `cloture: ${a.tone === 'ok' ? '●' : a.tone === 'stop' ? '●' : '◐'} ${a.readyCount}/${a.total} prêts`
+}
+
+// A toast only when the whole machine goes from "not yet" to "ready", never on the first read.
+export function becameReady(previous: ClotureTone | null, next: ClotureTone): boolean {
+  return previous !== null && previous !== 'ok' && next === 'ok'
 }
 
 export function defaultView(surface: string): ClotureView {

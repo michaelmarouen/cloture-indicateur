@@ -134,6 +134,10 @@ export function shouldRefresh(kind: ClotureKind | null, ageMs: number, isDirty: 
 }
 
 // Forward slashes only: in a template literal a lone backslash would swallow the next character.
+export function baselinePath(home: string, id: string): string {
+  return `${home.replace(/\\/g, '/')}/.claude/cloture-baseline/${id}.json`
+}
+
 export function checkerScript(home: string): string {
   return `${home.replace(/\\/g, '/')}/.claude/scripts/cloture_check.py`
 }

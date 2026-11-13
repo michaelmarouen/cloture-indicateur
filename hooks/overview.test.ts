@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { THEMES, VIEWS, answer, counts, defaultView, nextTheme, palette, parseOverview, ring } from './overview'
+import { THEMES, VIEWS, ageLabel, answer, becameReady, canPush, counts, defaultView, isStale, nextTheme, palette, parseOverview, ring, statusText } from './overview'
 
 const P = (s: string) => s.split('/').join(String.fromCharCode(92))
 
@@ -79,4 +79,34 @@ test('palette: auto keeps named terminal colours, clair and sombre are fixed hex
   expect(palette('clair').stop).toMatch(/^#[0-9a-f]{6}$/)
   expect(palette('sombre').stop).toMatch(/^#[0-9a-f]{6}$/)
   expect(palette('clair').text).not.toBe(palette('sombre').text)
+})
+
+test('ageLabel and isStale', () => {
+  expect(ageLabel(1000, 4000)).toBe("à l'instant")
+  expect(ageLabel(0, 40_000)).toBe('il y a 40 s')
+  expect(ageLabel(0, 200_000)).toBe('il y a 3 min')
+  expect(isStale(0, 90_000)).toBe(false)
+  expect(isStale(0, 90_001)).toBe(true)
+})
+
+test('canPush needs commits and a remote', () => {
+  expect(canPush({ ah: 2, upstream: true })).toBe(true)
+  expect(canPush({ ah: 0, upstream: true })).toBe(false)
+  expect(canPush({ ah: 2, upstream: false })).toBe(false)
+})
+
+test('becameReady fires only on a real change to ok, never on the first read', () => {
+  expect(becameReady(null, 'ok')).toBe(false)
+  expect(becameReady('stop', 'ok')).toBe(true)
+  expect(becameReady('warn', 'ok')).toBe(true)
+  expect(becameReady('ok', 'ok')).toBe(false)
+  expect(becameReady('stop', 'warn')).toBe(false)
+})
+
+test('statusText gives the machine-wide gauge and every theme has its page and card colours', () => {
+  const o = { at: 0, jobsRead: true, repos: [] }
+  expect(statusText(answer(o))).toBe('cloture: ● 0/0 prêts')
+  expect(palette('clair').bg).toBe('#ffffff')
+  expect(palette('sombre').card).toBe('#2a2a2a')
+  expect(palette('auto').bg).toBeUndefined()
 })

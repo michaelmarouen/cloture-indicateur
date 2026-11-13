@@ -1,6 +1,6 @@
 # cloture-indicateur
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757.svg)](https://github.com/michaelmarouen/cloture-indicateur) ![version](https://img.shields.io/badge/version-0.12.2-blue.svg)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757.svg)](https://github.com/michaelmarouen/cloture-indicateur) ![version](https://img.shields.io/badge/version-0.13.0-blue.svg)
 
 A Claude Code mod that tells you, live and per session, whether you can safely close it.
 Un mod Claude Code qui indique en direct, pour chaque session, si tu peux la fermer sans rien perdre.
@@ -57,6 +57,8 @@ Apres un envoi (aux autres sessions ou a la session de base), le bandeau passe e
 Le resultat de l'envoi reste affiche sur le bandeau (« ✓ 1/1 session(s) prevenue(s) » ou « ✗ 0/1 ... » avec la raison), et un envoi refuse ou en erreur n'est jamais silencieux. **Livre ne veut pas dire lu.** Selon le moteur de Claude Code (textes lus dans son binaire), un message entre deux sessions dont les **modes de permission different** est *retenu* chez le destinataire ; une session Desktop ou non interactive ne peut pas l'approuver, et il expire sans etre lu. Le mod enregistre le mode de chaque session, avertit « ⚠ N session(s) en mode different » et affiche les avis du moteur (retenu, approuve, refuse, expire, abandonne). Un message identique est ecarte par le moteur : chaque envoi porte donc l'heure, et un delai de 15 s separe deux envois. La session qui recoit n'agit que si son propre utilisateur le demande : un message reste une information, pas un ordre. Les fiches ne sont pas effacees, juste ignorees quand elles sont perimees.
 
 ## Panneau Clôture (variante 3)
+
+Depuis la 0.13.0 : le panneau se relit seul toutes les 30 s tant qu'il est ouvert, affiche l'âge de la lecture (« Lu il y a 40 s », avertissement au-delà de 90 s), met une pastille `● 2/6 prêts` dans la ligne de statut avec un toast quand tout devient prêt, propose par dépôt un bouton `↑` (pousser, deux appuis, jamais forcé) et `✉` (prévenir les autres sessions), et le thème clair ou sombre peint toute la page, pas seulement le texte. Le détail est une carte.
 
 Le bouton **▤ Détail** du bandeau (ou la commande `/cloture`) ouvre un panneau qui répond à la vraie question : peut-on fermer **toutes** les sessions ?
 

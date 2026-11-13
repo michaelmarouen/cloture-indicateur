@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { checkerScript, computeVerdict, extras, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
+import { baselinePath, checkerScript, computeVerdict, extras, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 import type { Run } from './git-state'
 import { buildMessage, canAsk, parseBase } from './base'
 import { FRESH_MS, buildSiblingMessage, labelFrom, makeLabel, parseEntry, repoKey, sendAll, siblings, summarize, classifyNotice, modeMismatch } from './registry'
@@ -180,4 +180,11 @@ test('extras: rien à afficher sans generated ni foreign', () => {
   const v = parseChecker(JSON.stringify({ kind: 'PROPRE', dirty: 0, branch: 'main' }))!
   expect(extras(v)).toBe('')
   expect(reason(v)).toBe('dépôt propre et poussé')
+})
+
+test('baselinePath keeps every separator (a lone backslash in a template literal swallowed them)', () => {
+  const bs = String.fromCharCode(92)
+  const p = baselinePath(`C:${bs}Users${bs}me`, 'abc')
+  expect(p).toBe('C:/Users/me/.claude/cloture-baseline/abc.json')
+  expect(p.includes(bs)).toBe(false)
 })

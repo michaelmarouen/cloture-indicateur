@@ -1,11 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { ClotureBase, ClotureNote, ClotureOverview, ClotureSibling, ClotureTheme, ClotureVerdict, ClotureView } from '../types'
+import type { ClotureBase, ClotureNote, ClotureOverview, ClotureRepo, ClotureSibling, ClotureTheme, ClotureTone, ClotureVerdict, ClotureView } from '../types'
 import { buildMessage, canAsk, parseBase } from './base'
-import { THEMES, VIEWS, answer, counts, defaultView, nextTheme, palette, parseOverview, ring } from './overview'
+import { AUTO_MS, PANE_LIVE_MS, READY_MIN_GAP_MS, THEMES, VIEWS, ageLabel, answer, becameReady, canPush, counts, defaultView, isStale, nextTheme, palette, parseOverview, ring, statusText } from './overview'
 import { BEAT_MS, FRESH_MS, buildSiblingMessage, classifyNotice, makeLabel, modeMismatch, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
-import { TICK_MS, WAIT_MAX_MS, checkerScript, computeVerdict, describe, extras, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
+import { TICK_MS, WAIT_MAX_MS, baselinePath, checkerScript, computeVerdict, describe, extras, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
 const verdict = atom({ plugin: 'cloture-indicateur', key: 'verdict' } as const, null)
 const isHidden = atom({ plugin: 'cloture-indicateur', key: 'isHidden' } as const, false)
@@ -21,6 +21,8 @@ const themeAtom = atom({ plugin: 'cloture-indicateur', key: 'theme' } as const, 
 const isOverviewBusy = atom({ plugin: 'cloture-indicateur', key: 'isOverviewBusy' } as const, false)
 const isArmed = atom({ plugin: 'cloture-indicateur', key: 'isArmed' } as const, false)
 const overviewNote = atom({ plugin: 'cloture-indicateur', key: 'overviewNote' } as const, null)
+const tickAtom = atom({ plugin: 'cloture-indicateur', key: 'tick' } as const, 0)
+const armedPush = atom({ plugin: 'cloture-indicateur', key: 'armedPush' } as const, null)
 
 const PANE = 'cloture'
 
@@ -35,6 +37,10 @@ let myLabel = ''
 let lastAt = 0
 let isBusy = false
 let isDirty = true
+let lastPaneRender = 0
+let lastOverviewAt = 0
+let overviewTone: ClotureTone | null = null
+let lastReadyToastAt = 0
 
 // Baseline of this session: the uncommitted entries already there at its start (kept on reload by the
 // checker), so they are not charged to this session. A failure only means no baseline: stays cautious.
@@ -44,7 +50,7 @@ async function takeBaseline($: EngineInterface) {
     const id = await $.session.id()
     if (!home || !id) return
     await $.process.run(
-      ['python', '-I', checkerScript(home), '--snapshot', await $.session.cwd(), '--out', `${home}\.claude\cloture-baseline\${id}.json`],
+      ['python', '-I', checkerScript(home), '--snapshot', await $.session.cwd(), '--out', baselinePath(home, id)],
       { timeoutMs: 15000 },
     )
   } catch {
@@ -61,7 +67,7 @@ async function viaChecker($: EngineInterface, cwd: string): Promise<ClotureVerdi
   try {
     const argv = ['python', '-I', script, '--git-only', cwd]
     const id = await $.session.id()
-    if (id) argv.push('--baseline', `${home}\.claude\cloture-baseline\${id}.json`)
+    if (id) argv.push('--baseline', baselinePath(home, id))
     const r = await $.process.run(argv, { timeoutMs: 15000 })
     return r.exitCode === 0 ? parseChecker(r.stdout) : null
   } catch {
@@ -209,6 +215,14 @@ async function loadOverview($: EngineInterface) {
     if (!parsed) throw new Error(`le moteur a répondu ${r.exitCode}`)
     await update($, overviewAtom, () => parsed)
     await update($, overviewNote, () => null)
+    lastOverviewAt = now
+    const a = answer(parsed)
+    $.ui.status(statusText(a))
+    if (becameReady(overviewTone, a.tone) && now - lastReadyToastAt > READY_MIN_GAP_MS) {
+      lastReadyToastAt = now
+      $.ui.toast('Oui, tu peux fermer : tous les dépôts sont prêts')
+    }
+    overviewTone = a.tone
   } catch (err) {
     await update($, overviewNote, () => ({ ok: false, text: `lecture impossible : ${err instanceof Error ? err.message : 'erreur'}` }))
   } finally {
@@ -217,6 +231,7 @@ async function loadOverview($: EngineInterface) {
 }
 
 async function openPane($: EngineInterface) {
+  lastPaneRender = await $.clock.now()
   await $.ui.open({ id: PANE, title: 'Clôture' })
   void loadOverview($)
 }
@@ -241,6 +256,42 @@ async function commitGenerated($: EngineInterface, o: ClotureOverview) {
   void loadOverview($)
 }
 
+// Push of the commits already made, one repo, two presses, never forced: a refusal (remote ahead...) is shown as is.
+async function pushRepo($: EngineInterface, r: ClotureRepo) {
+  if ((await read($, armedPush)) !== r.path) {
+    await update($, armedPush, () => r.path)
+    return
+  }
+  await update($, armedPush, () => null)
+  try {
+    const res = await $.process.run(['git', '-C', r.path, 'push'], { timeoutMs: 60000 })
+    const detail = (res.stderr || res.stdout).trim().split('\n').pop()?.trim().slice(0, 100) ?? ''
+    await update($, overviewNote, () => ({ ok: res.exitCode === 0, text: `${r.name} : ${res.exitCode === 0 ? 'poussé' : `refusé (${detail})`}` }))
+  } catch (err) {
+    await update($, overviewNote, () => ({ ok: false, text: `${r.name} : push impossible (${err instanceof Error ? err.message : 'erreur'})` }))
+  }
+  void loadOverview($)
+}
+
+// Warn the other sessions of one repo (the message is the same one the band sends).
+async function warnRepo($: EngineInterface, r: ClotureRepo) {
+  const me = await $.session.id()
+  const targets = r.sessionIds.filter(id => id !== me).map(id => ({ id, label: '', mode: '' }))
+  if (targets.length === 0) return
+  const now = await $.clock.now()
+  if (now - lastSendAt < 15_000) {
+    $.ui.toast('Attends quelques secondes avant de renvoyer.')
+    return
+  }
+  lastSendAt = now
+  const v: ClotureVerdict = { kind: r.nb > 0 ? 'NON_COMMITE' : 'NON_POUSSE', dirty: r.nb, ahead: r.ah, stash: 0, branch: '', worktrees: 0 }
+  const text = buildSiblingMessage(myLabel, v, r.path, `envoi de ${new Date(now).toTimeString().slice(0, 8)}`)
+  const { delivered, failures } = await sendAll(targets, id => $.session.send({ to: { sessionId: id }, text }))
+  const note = summarize(targets.length, delivered, failures)
+  await update($, overviewNote, () => ({ ok: note.ok, text: `${r.name} : ${note.text}` }))
+  $.ui.toast(`${r.name} : ${note.text}`)
+}
+
 async function refresh($: EngineInterface) {
   if (isBusy) return
   isBusy = true
@@ -263,7 +314,7 @@ async function refresh($: EngineInterface) {
       }
     }
     if (previous?.kind !== next.kind) await update($, isHidden, () => false)
-    $.ui.status(`cloture: ${describe(next)}`)
+    if (overviewTone === null) $.ui.status(`cloture: ${describe(next)}`)
     if (previous && previous.kind !== 'PROPRE' && next.kind === 'PROPRE') {
       $.ui.toast('Depot propre : tu peux fermer cette session')
     }
@@ -278,6 +329,12 @@ async function tick($: EngineInterface) {
   const now = await $.clock.now()
   if (waitingSince > 0 && now - waitingSince > WAIT_MAX_MS) await stopWaiting($)
   if (v && now - lastBeat > BEAT_MS && !isBusy) await syncRegistry($, v)
+  // Pane open (it rendered lately): re-read the whole machine every AUTO_MS and redraw the age. A closed
+  // pane stops rendering, so this stops by itself.
+  if (now - lastPaneRender < PANE_LIVE_MS) {
+    await update($, tickAtom, () => now)
+    if (now - lastOverviewAt >= AUTO_MS) void loadOverview($)
+  }
   const age = now - lastAt
   if (!isBusy && shouldRefresh(v?.kind ?? null, age, isDirty, waitingSince > 0)) {
     isDirty = false
@@ -332,6 +389,7 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     $.clock.after(0, () => void tick($))
+    $.clock.after(0, () => void ($.clock.now().then(n => (n - lastOverviewAt >= READY_MIN_GAP_MS ? loadOverview($) : undefined))))
     return next(e)
   })
 
@@ -392,6 +450,11 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
+    const nowMs = await $.clock.now()
+    lastPaneRender = nowMs
+    await read($, tickAtom)
+    const me = await $.session.id()
+    const armedRepo = (await read($, armedPush)) as string | null
     const o = (await read($, overviewAtom)) as ClotureOverview | null
     const busy = await read($, isOverviewBusy)
     const note = (await read($, overviewNote)) as ClotureNote | null
@@ -402,21 +465,39 @@ export const register: Register = on => {
     const pal = palette(theme)
     const themeNow = THEMES.find(x => x.id === theme) ?? THEMES[0]!
 
+    // The theme paints the whole pane (page background and cards), not only the text colours.
+    const frame = (children: unknown) => (
+      <Box flexDirection="column" gap={1} paddingX={1} backgroundColor={pal.bg} minHeight={e.props.scroll.bodyRows}>
+        {children}
+      </Box>
+    )
     const refreshButton = <Button key="refresh" label={busy ? '…' : '↻'} onPress={() => loadOverview($)} />
     if (!o) {
-      return (
+      return frame(
         <Box flexDirection="column" gap={1}>
           <Text bold color={pal.text}>Clôture des sessions</Text>
           <Text dimColor>{busy ? 'Lecture de l’état des dépôts (environ 7 s)…' : 'Aucune lecture pour le moment.'}</Text>
           {note ? <Text color={pal.stop}>✗ {note.text}</Text> : null}
           {refreshButton}
-        </Box>
+        </Box>,
       )
     }
 
     const a = answer(o)
     const color = pal[a.tone]
     const when = new Date(o.at).toTimeString().slice(0, 8)
+    const stale = isStale(o.at, nowMs)
+    const repoButtons = (r: ClotureRepo) => {
+      const others = r.sessionIds.filter(id => id !== me).length
+      return [
+        canPush(r) ? (
+          <Button key={`push-${r.name}`} variant={armedRepo === r.path ? 'primary' : 'secondary'} label={armedRepo === r.path ? `✓ pousser ${r.ah} ?` : `↑ ${r.ah}`} onPress={() => pushRepo($, r)} />
+        ) : null,
+        r.tone === 'stop' && others > 0 ? (
+          <Button key={`warn-${r.name}`} variant="secondary" label={`✉ ${others}`} onPress={() => warnRepo($, r)} />
+        ) : null,
+      ]
+    }
     // Icon-only buttons; each one's label is a hidden Text shown on hover (scope h-<id>) in the row below.
     const tools = [
       ...(a.generated > 0
@@ -443,10 +524,12 @@ export const register: Register = on => {
       { id: 'close', label: 'Fermer le panneau', button: <Button key="close" label="✕" onPress={() => $.ui.close({ id: PANE })} /> },
     ]
     const shown = o.repos.filter(r => r.tone !== 'ok')
-    return (
+    return frame(
       <Box flexDirection="column" gap={1}>
-        <Text dimColor>Données de {when} : {o.repos.reduce((n, r) => n + r.ns, 0)} session(s), {o.repos.length} dépôt(s)</Text>
-        <Box flexDirection="column" borderStyle="round" borderColor={color} paddingX={1}>
+        <Text color={stale ? pal.warn : undefined} dimColor={!stale}>
+          Lu {ageLabel(o.at, nowMs)} ({when}) : {o.repos.reduce((n, r) => n + r.ns, 0)} session(s), {o.repos.length} dépôt(s){stale ? ' · lecture ancienne, ↻ pour relire' : ''}
+        </Text>
+        <Box flexDirection="column" borderStyle="round" borderColor={color} backgroundColor={pal.card} paddingX={1}>
           <Text color={color} bold>{a.headline}   {ring(a.readyCount, a.total)}</Text>
           <Text dimColor>{a.detail}</Text>
           {a.checks.map(c => (
@@ -466,31 +549,37 @@ export const register: Register = on => {
         </Box>
         <Box height={1}>
           {tools.map(t => (
-            <Box display="none" hover={{ scope: `h-${t.id}`, display: 'flex' }}>
+            <Box key={`l-${t.id}`} display="none" hover={{ scope: `h-${t.id}`, display: 'flex' }}>
               <Text dimColor>{t.label}</Text>
             </Box>
           ))}
         </Box>
         {note ? <Text color={note.ok ? pal.ok : pal.stop}>{note.ok ? '✓' : '✗'} {note.text}</Text> : null}
+        <Box flexDirection="column" borderStyle="round" borderColor={pal.text} backgroundColor={pal.card} paddingX={1}>
+          <Text bold color={pal.text}>Détail · {shown.length === 0 ? 'rien à traiter' : `${shown.length} dépôt(s) à traiter`}</Text>
         {shown.length === 0 ? (
           <Text color={pal.ok}>✓ Tous les dépôts sont propres et poussés.</Text>
         ) : view === 'cartes' ? (
           <Box gap={1} flexWrap="wrap">
             {shown.map(r => (
-              <Box flexDirection="column" borderStyle="round" borderColor={pal[r.tone]} paddingX={1}>
+              <Box key={`c-${r.path}`} flexDirection="column" borderStyle="round" borderColor={pal[r.tone]} backgroundColor={pal.bg} paddingX={1}>
                 <Text bold color={pal.text}>{r.name}</Text>
                 <Text color={pal.text}>{counts(r)}</Text>
                 <Text dimColor>{r.ns} session(s)</Text>
+                <Box gap={1}>{repoButtons(r)}</Box>
               </Box>
             ))}
           </Box>
         ) : (
           <Box flexDirection="column">
             {shown.map(r => (
-              <Box flexDirection="column">
-                <Text color={pal[r.tone]}>
-                  {r.tone === 'ok' ? '✓' : r.tone === 'stop' ? '✕' : '!'} {r.name} · {counts(r)}
-                </Text>
+              <Box key={`r-${r.path}`} flexDirection="column">
+                <Box gap={1}>
+                  <Text color={pal[r.tone]}>
+                    {r.tone === 'ok' ? '✓' : r.tone === 'stop' ? '✕' : '!'} {r.name} · {counts(r)}
+                  </Text>
+                  {repoButtons(r)}
+                </Box>
                 {view === 'depliant' && r.tone === 'stop' ? (
                   <Box flexDirection="column" paddingLeft={2}>
                     {r.files.map(f => (
@@ -504,7 +593,8 @@ export const register: Register = on => {
             ))}
           </Box>
         )}
-      </Box>
+        </Box>
+      </Box>,
     )
   })
 }
