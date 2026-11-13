@@ -4,7 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { ClotureBase, ClotureNote, ClotureSibling, ClotureVerdict } from '../types'
 import { buildMessage, canAsk, parseBase } from './base'
 import { BEAT_MS, buildSiblingMessage, classifyNotice, makeLabel, modeMismatch, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
-import { TICK_MS, WAIT_MAX_MS, checkerScript, computeVerdict, describe, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
+import { TICK_MS, WAIT_MAX_MS, checkerScript, computeVerdict, describe, extras, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
 const verdict = atom({ plugin: 'cloture-indicateur', key: 'verdict' } as const, null)
 const isHidden = atom({ plugin: 'cloture-indicateur', key: 'isHidden' } as const, false)
@@ -28,6 +28,22 @@ let lastAt = 0
 let isBusy = false
 let isDirty = true
 
+// Baseline of this session: the uncommitted entries already there at its start (kept on reload by the
+// checker), so they are not charged to this session. A failure only means no baseline: stays cautious.
+async function takeBaseline($: EngineInterface) {
+  try {
+    const home = await $.env.get('USERPROFILE')
+    const id = await $.session.id()
+    if (!home || !id) return
+    await $.process.run(
+      ['python', '-I', checkerScript(home), '--snapshot', await $.session.cwd(), '--out', `${home}\.claude\cloture-baseline\${id}.json`],
+      { timeoutMs: 15000 },
+    )
+  } catch {
+    /* no baseline */
+  }
+}
+
 // Optional single source of truth: ~/.claude/scripts/cloture_check.py --git-only.
 // Absent or failing, the built-in git logic answers.
 async function viaChecker($: EngineInterface, cwd: string): Promise<ClotureVerdict | null> {
@@ -35,7 +51,10 @@ async function viaChecker($: EngineInterface, cwd: string): Promise<ClotureVerdi
   if (!home) return null
   const script = checkerScript(home)
   try {
-    const r = await $.process.run(['python', '-I', script, '--git-only', cwd], { timeoutMs: 15000 })
+    const argv = ['python', '-I', script, '--git-only', cwd]
+    const id = await $.session.id()
+    if (id) argv.push('--baseline', `${home}\.claude\cloture-baseline\${id}.json`)
+    const r = await $.process.run(argv, { timeoutMs: 15000 })
     return r.exitCode === 0 ? parseChecker(r.stdout) : null
   } catch {
     return null
@@ -85,7 +104,7 @@ async function registryDir($: EngineInterface): Promise<string | null> {
 
 async function syncRegistry($: EngineInterface, v: ClotureVerdict) {
   const dir = await registryDir($)
-  if (!dir || v.kind === 'HORS_GIT' || v.kind === 'ERREUR') {
+  if (!dir || v.kind === 'HORS_GIT') {
     await update($, siblingsAtom, () => [])
     return
   }
@@ -203,7 +222,7 @@ async function tick($: EngineInterface) {
 
 export const register: Register = on => {
   on('session.start', ($, e, next) => {
-    $.clock.after(0, () => void refresh($))
+    $.clock.after(0, () => void takeBaseline($).then(() => refresh($)))
     $.clock.every(TICK_MS, () => void tick($))
     return next(e)
   })
@@ -270,6 +289,7 @@ export const register: Register = on => {
           ● {headline(v)}
         </Text>
         <Text>· {reason(v)}</Text>
+        {v.kind !== 'PROPRE' && extras(v) ? <Text dimColor>{extras(v)}</Text> : null}
         <Text dimColor>· {v.branch || 'hors dépôt'}</Text>
         {waiting && t === 'stop' ? <Text color="yellow">· ⏳ en attente des autres sessions</Text> : null}
         {isWarnable && mismatched.length > 0 ? (

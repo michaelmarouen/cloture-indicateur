@@ -7,6 +7,8 @@ export type ClotureVerdict = {
   stash: number
   branch: string
   worktrees: number
+  generated?: number
+  foreign?: number
 }
 
 export type ClotureBase = { id: string; baseTitle: string; title: string }

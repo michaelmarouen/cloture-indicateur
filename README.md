@@ -56,6 +56,15 @@ Le resultat de l'envoi reste affiche sur le bandeau (« ✓ 1/1 session(s) preve
 
 Si le fichier `~/.claude/scripts/cloture_check.py` existe et accepte `--git-only <dossier>` (il renvoie un JSON `kind`, `dirty`, `ahead`, `stash`, `branch`, `worktrees`), le mod l'utilise comme source de verite et compte aussi les worktrees. Sinon, ou s'il echoue, une logique git integree prend le relais (sans worktrees).
 
+## Fichiers régénérés et changements antérieurs à la session
+
+Avec `~/.claude/scripts/cloture_check.py`, deux familles de changements n'empêchent plus de fermer :
+
+- **Régénérés** : fichiers déclarés dans `~/.claude/cloture_rules.json` avec leur producteur (ex. `angela_status.html`). Affichés `(+ N régénéré(s), non bloquant)`.
+- **Hors session** : déjà présents et inchangés quand la session a démarré. Le mod prend une baseline au `session.start` (`~/.claude/cloture-baseline/<id>.json`, conservée au rechargement) et la passe à `--git-only --baseline`. Affichés `N hors session`.
+
+Un fichier indexé, ou modifié depuis la baseline, reste bloquant. Sans le script, le calcul interne compte tout comme avant.
+
 ## Limites
 
 - Il ne lit que git (`status`, `rev-list`, `stash list`). Il ne detecte pas un job en cours (build, entrainement...).

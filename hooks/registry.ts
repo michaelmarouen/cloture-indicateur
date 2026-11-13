@@ -75,7 +75,9 @@ export async function sendAll(
   const failures: string[] = []
   for (const t of targets) {
     try {
-      const r = await send(t.id)
+      let r = await send(t.id)
+      // The auto-mode classifier sometimes gives no verdict and asks for the same action once more.
+      if (!r.isDelivered && /gave no verdict/i.test(r.reason || '')) r = await send(t.id)
       if (r.isDelivered) delivered += 1
       else failures.push(r.reason || 'refusé')
     } catch (e) {

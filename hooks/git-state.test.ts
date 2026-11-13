@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { checkerScript, computeVerdict, headline, parseChecker, shouldRefresh, tone } from './git-state'
+import { checkerScript, computeVerdict, extras, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 import type { Run } from './git-state'
 import { buildMessage, canAsk, parseBase } from './base'
 import { FRESH_MS, buildSiblingMessage, labelFrom, makeLabel, parseEntry, repoKey, sendAll, siblings, summarize, classifyNotice, modeMismatch } from './registry'
@@ -136,6 +136,18 @@ test('a refused or thrown send is reported with its reason, never silent', async
   expect(summarize(2, 2, []).ok).toBe(true)
 })
 
+test('a send the classifier gave no verdict on is retried once, not twice', async () => {
+  const noVerdict = { isDelivered: false, reason: 'The server-side auto mode classifier gave no verdict for SendMessage' }
+  let calls = 0
+  const ok = await sendAll([{ id: 'a', label: '', mode: '' }], async () => (++calls === 1 ? noVerdict : { isDelivered: true }))
+  expect(ok.delivered).toBe(1)
+  expect(calls).toBe(2)
+  calls = 0
+  const ko = await sendAll([{ id: 'a', label: '', mode: '' }], async () => (++calls, noVerdict))
+  expect(ko.delivered).toBe(0)
+  expect(calls).toBe(2)
+})
+
 test('a closed session (updatedAt 0) is not a sibling', async () => {
   expect(siblings([{ id: 'x', repo: '', label: '', updatedAt: 0 }, { id: 'y', repo: 'r', label: '', updatedAt: 0 }], 'me', 'r', T0)).toEqual([])
 })
@@ -154,4 +166,18 @@ test('permission modes that differ are flagged, unknown ones are not', async () 
   const o = [{ id: 'a', label: '', mode: 'default' }, { id: 'b', label: '', mode: 'acceptEdits' }, { id: 'c', label: '', mode: '' }]
   expect(modeMismatch('default', o).map(s => s.id)).toEqual(['b'])
   expect(modeMismatch('', o)).toEqual([])
+})
+
+test('extras: les fichiers régénérés et hors session sont affichés, jamais bloquants', () => {
+  const v = parseChecker(JSON.stringify({ kind: 'PROPRE', dirty: 0, generated: 4, foreign: 1, branch: 'main' }))!
+  expect(extras(v)).toBe('(+ 4 régénéré(s), 1 hors session, non bloquant)')
+  expect(reason(v)).toContain('dépôt propre et poussé')
+  expect(reason(v)).toContain('non bloquant')
+  expect(tone(v)).toBe('ok')
+})
+
+test('extras: rien à afficher sans generated ni foreign', () => {
+  const v = parseChecker(JSON.stringify({ kind: 'PROPRE', dirty: 0, branch: 'main' }))!
+  expect(extras(v)).toBe('')
+  expect(reason(v)).toBe('dépôt propre et poussé')
 })
