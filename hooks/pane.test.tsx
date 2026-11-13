@@ -33,7 +33,7 @@ test('pane shows the answer, 3 checks, the next action and the 4 view buttons', 
   expect(await ui.find({ type: 'Text', text: /1 commit pas encore poussé/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /Aucun job lourd en cours/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /heretic : 2 fichiers à commiter ou écarter, dont pyproject.toml/ })).toBeTruthy()
-  for (const id of ['depliant', 'liste', 'cartes', 'matrice']) {
+  for (const id of ['depliant', 'liste', 'cartes']) {
     expect(await ui.find({ type: 'Button', key: `view-${id}` })).toBeTruthy()
   }
   expect(await ui.find({ type: 'Button', key: 'commit' })).toBeTruthy()
@@ -53,9 +53,10 @@ test('desktop opens on Dépliant (files listed), mobile opens on Cartes', async 
 })
 
 test('a chosen view wins over the default, on mobile too', async ($, on) => {
-  on('state.get', seed({ overview, view: 'matrice', isOverviewBusy: false, isArmed: false, overviewNote: null }))
+  on('state.get', seed({ overview, view: 'liste', isOverviewBusy: false, isArmed: false, overviewNote: null }))
   const ui = await $.ui.mount({ ...PANE, surface: 'mobile' })
-  expect(await ui.find({ type: 'Text', text: /Dépôt\s+Sauver/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /heretic · 2 à sauver · 1 à pousser/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Button', key: 'view-matrice' })).toBeFalsy()
   await ui.unmount()
 })
 
@@ -79,5 +80,28 @@ test('empty pane explains itself and a failed read stays visible', async ($, on)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /lecture impossible/ })).toBeTruthy()
   expect(await ui.find({ type: 'Button', key: 'refresh' })).toBeTruthy()
+  await ui.unmount()
+})
+
+for (const [theme, icon, stop] of [['auto', '◐', 'red'], ['clair', '☀', '#b91c1c'], ['sombre', '☾', '#f87171']] as const) {
+  test(`theme ${theme}: toggle shows ${icon} and the answer uses its colour`, async ($, on) => {
+    on('state.get', seed({ overview, view: null, theme, isOverviewBusy: false, isArmed: false, overviewNote: null }))
+    const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+    expect((await ui.find({ type: 'Button', key: 'theme' }))?.text).toBe(icon)
+    expect(await ui.find({ type: 'Text', text: new RegExp(`thème ${theme}`) })).toBeTruthy()
+    const head = (await ui.find({ type: 'Text', text: /Non, pas encore/ })) as { props?: { color?: string } } | null
+    expect(head?.props?.color).toBe(stop)
+    await ui.unmount()
+  })
+}
+
+test('view and refresh buttons are icon-only', async ($, on) => {
+  on('state.get', seed({ overview, view: null, theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null }))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Button', key: 'view-depliant' }))?.text).toBe('▾')
+  expect((await ui.find({ type: 'Button', key: 'view-liste' }))?.text).toBe('≡')
+  expect((await ui.find({ type: 'Button', key: 'view-cartes' }))?.text).toBe('▦')
+  expect((await ui.find({ type: 'Button', key: 'refresh' }))?.text).toBe('↻')
+  expect((await ui.find({ type: 'Button', key: 'close' }))?.text).toBe('✕')
   await ui.unmount()
 })

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { answer, counts, defaultView, matrix, parseOverview, ring } from './overview'
+import { THEMES, VIEWS, answer, counts, defaultView, nextTheme, palette, parseOverview, ring } from './overview'
 
 const P = (s: string) => s.split('/').join(String.fromCharCode(92))
 
@@ -51,17 +51,32 @@ test('unread jobs are never reported as none', () => {
   expect(answer(o).checks[2]).toEqual({ ok: false, text: 'Jobs lourds non lus' })
 })
 
-test('ring, counts, matrix and default view', () => {
+test('ring, counts and default view', () => {
   expect(ring(2, 6)).toBe('███░░░░░░░ 2/6')
   expect(ring(0, 0)).toBe('░░░░░░░░░░ 0/0')
   const o = parseOverview(raw, 1)!
   expect(counts(o.repos[0]!)).toBe('2 à sauver · 1 à pousser')
   expect(counts(o.repos[1]!)).toBe('aucun distant')
   expect(counts(o.repos[2]!)).toBe('propre et poussé')
-  const m = matrix(o.repos)
-  expect(m).toHaveLength(4)
-  expect(m[0]).toContain('Sauver')
-  expect(m[1]).toMatch(/^heretic\s+2\s+1\s+1\s+0\s+1$/)
   expect(defaultView('mobile')).toBe('cartes')
   expect(defaultView('desktop')).toBe('depliant')
+})
+
+test('three views only, each with an icon (no matrix in the mod)', () => {
+  expect(VIEWS.map(v => v.id)).toEqual(['depliant', 'liste', 'cartes'])
+  expect(VIEWS.every(v => v.icon.length === 1)).toBe(true)
+})
+
+test('theme cycles auto, clair, sombre and back', () => {
+  expect(THEMES.map(t => t.id)).toEqual(['auto', 'clair', 'sombre'])
+  expect(nextTheme('auto')).toBe('clair')
+  expect(nextTheme('clair')).toBe('sombre')
+  expect(nextTheme('sombre')).toBe('auto')
+})
+
+test('palette: auto keeps named terminal colours, clair and sombre are fixed hex', () => {
+  expect(palette('auto')).toEqual({ ok: 'green', stop: 'red', warn: 'yellow', text: undefined })
+  expect(palette('clair').stop).toMatch(/^#[0-9a-f]{6}$/)
+  expect(palette('sombre').stop).toMatch(/^#[0-9a-f]{6}$/)
+  expect(palette('clair').text).not.toBe(palette('sombre').text)
 })

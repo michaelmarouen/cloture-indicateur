@@ -1,13 +1,34 @@
-import type { ClotureOverview, ClotureRepo, ClotureTone, ClotureView } from '../types'
+import type { ClotureOverview, ClotureRepo, ClotureTheme, ClotureTone, ClotureView } from '../types'
 
 const MAX_FILES = 8
 
-export const VIEWS: readonly { id: ClotureView; label: string }[] = [
-  { id: 'depliant', label: 'Dépliant' },
-  { id: 'liste', label: 'Liste' },
-  { id: 'cartes', label: 'Cartes' },
-  { id: 'matrice', label: 'Matrice' },
+// Icon-only buttons keep the pane compact; the active view is named in a dim line beside them.
+export const VIEWS: readonly { id: ClotureView; label: string; icon: string }[] = [
+  { id: 'depliant', label: 'Dépliant', icon: '▾' },
+  { id: 'liste', label: 'Liste', icon: '≡' },
+  { id: 'cartes', label: 'Cartes', icon: '▦' },
 ]
+
+export const THEMES: readonly { id: ClotureTheme; label: string; icon: string }[] = [
+  { id: 'auto', label: 'auto', icon: '◐' },
+  { id: 'clair', label: 'clair', icon: '☀' },
+  { id: 'sombre', label: 'sombre', icon: '☾' },
+]
+
+export function nextTheme(t: ClotureTheme): ClotureTheme {
+  const i = THEMES.findIndex(x => x.id === t)
+  return THEMES[(i + 1) % THEMES.length]!.id
+}
+
+export type Palette = { ok: string; stop: string; warn: string; text: string | undefined }
+
+// auto: the terminal's own named colours (they follow its theme). clair / sombre: fixed colours with
+// enough contrast on a light or a dark background (WCAG AA against white and against #1e1e1e).
+export function palette(t: ClotureTheme): Palette {
+  if (t === 'clair') return { ok: '#15803d', stop: '#b91c1c', warn: '#a16207', text: '#1f2937' }
+  if (t === 'sombre') return { ok: '#4ade80', stop: '#f87171', warn: '#fbbf24', text: '#e5e7eb' }
+  return { ok: 'green', stop: 'red', warn: 'yellow', text: undefined }
+}
 
 type Raw = {
   repos?: {
@@ -122,14 +143,6 @@ export function counts(r: ClotureRepo): string {
   if (!r.upstream) bits.push('aucun distant')
   if (bits.length === 0) bits.push('propre et poussé')
   return bits.join(' · ')
-}
-
-export function matrix(repos: readonly ClotureRepo[]): string[] {
-  const head = ['Dépôt', 'Sauver', 'Pousser', 'Régén.', 'Hors', 'Sess.']
-  const rows = repos.map(r => [r.name, String(r.nb), String(r.ah), String(r.gen), String(r.fo), String(r.ns)])
-  const w = head.map((h, i) => Math.max(h.length, ...rows.map(row => (row[i] ?? '').length)))
-  const line = (cells: string[]) => cells.map((c, i) => (i === 0 ? c.padEnd(w[i] ?? 0) : c.padStart(w[i] ?? 0))).join('  ')
-  return [line(head), ...rows.map(line)]
 }
 
 export function defaultView(surface: string): ClotureView {

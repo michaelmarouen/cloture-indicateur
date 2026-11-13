@@ -1,9 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { ClotureBase, ClotureNote, ClotureOverview, ClotureSibling, ClotureVerdict, ClotureView } from '../types'
+import type { ClotureBase, ClotureNote, ClotureOverview, ClotureSibling, ClotureTheme, ClotureVerdict, ClotureView } from '../types'
 import { buildMessage, canAsk, parseBase } from './base'
-import { VIEWS, answer, counts, defaultView, matrix, parseOverview, ring } from './overview'
+import { THEMES, VIEWS, answer, counts, defaultView, nextTheme, palette, parseOverview, ring } from './overview'
 import { BEAT_MS, FRESH_MS, buildSiblingMessage, classifyNotice, makeLabel, modeMismatch, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
 import { TICK_MS, WAIT_MAX_MS, checkerScript, computeVerdict, describe, extras, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
@@ -17,6 +17,7 @@ const sendNote = atom({ plugin: 'cloture-indicateur', key: 'sendNote' } as const
 const isSent = atom({ plugin: 'cloture-indicateur', key: 'isSent' } as const, false)
 const overviewAtom = atom({ plugin: 'cloture-indicateur', key: 'overview' } as const, null)
 const viewAtom = atom({ plugin: 'cloture-indicateur', key: 'view' } as const, null)
+const themeAtom = atom({ plugin: 'cloture-indicateur', key: 'theme' } as const, 'auto')
 const isOverviewBusy = atom({ plugin: 'cloture-indicateur', key: 'isOverviewBusy' } as const, false)
 const isArmed = atom({ plugin: 'cloture-indicateur', key: 'isArmed' } as const, false)
 const overviewNote = atom({ plugin: 'cloture-indicateur', key: 'overviewNote' } as const, null)
@@ -25,7 +26,6 @@ const PANE = 'cloture'
 
 // A turn can only change the repo through these; anything else skips the recompute.
 const WRITERS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
-const COLORS = { ok: 'green', stop: 'red', warn: 'yellow' } as const
 
 let myMode = ''
 let lastSendAt = 0
@@ -343,7 +343,8 @@ export const register: Register = on => {
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const t = tone(v)
-    const color = COLORS[t]
+    const pal = palette(((await read($, themeAtom)) as ClotureTheme) ?? 'auto')
+    const color = pal[t]
     const base = (await read($, baseAtom)) as ClotureBase | null
     const sent = await read($, isSent)
     const isAskable = canAsk(v, base)
@@ -359,14 +360,14 @@ export const register: Register = on => {
         <Text color={color} bold>
           ● {headline(v)}
         </Text>
-        <Text>· {reason(v)}</Text>
+        <Text color={pal.text}>· {reason(v)}</Text>
         {v.kind !== 'PROPRE' && extras(v) ? <Text dimColor>{extras(v)}</Text> : null}
         <Text dimColor>· {v.branch || 'hors dépôt'}</Text>
-        {waiting && t === 'stop' ? <Text color="yellow">· ⏳ en attente des autres sessions</Text> : null}
+        {waiting && t === 'stop' ? <Text color={pal.warn}>· ⏳ en attente des autres sessions</Text> : null}
         {isWarnable && mismatched.length > 0 ? (
-          <Text color="yellow">· ⚠ {mismatched.length} session(s) en mode différent : message à approuver chez elle</Text>
+          <Text color={pal.warn}>· ⚠ {mismatched.length} session(s) en mode différent : message à approuver chez elle</Text>
         ) : null}
-        {note ? <Text color={note.ok ? 'green' : 'red'}>· {note.ok ? '✓' : '✗'} {note.text}</Text> : null}
+        {note ? <Text color={note.ok ? pal.ok : pal.stop}>· {note.ok ? '✓' : '✗'} {note.text}</Text> : null}
         {isWarnable ? (
           <Button
             key="warn"
@@ -383,8 +384,8 @@ export const register: Register = on => {
             onPress={() => askBase($, base, v)}
           />
         ) : null}
-        <Button key="detail" label="Détail" onPress={() => openPane($)} />
-        <Button key="hide" label="Masquer" onPress={() => update($, isHidden, () => true)} />
+        <Button key="detail" label="▤ Détail" onPress={() => openPane($)} />
+        <Button key="hide" label="✕" onPress={() => update($, isHidden, () => true)} />
       </Box>
     )
   })
@@ -397,21 +398,24 @@ export const register: Register = on => {
     const armed = await read($, isArmed)
     const chosen = (await read($, viewAtom)) as ClotureView | null
     const view = chosen ?? defaultView(e.surface)
+    const theme = ((await read($, themeAtom)) as ClotureTheme) ?? 'auto'
+    const pal = palette(theme)
+    const themeNow = THEMES.find(x => x.id === theme) ?? THEMES[0]!
 
-    const refreshButton = <Button key="refresh" label={busy ? 'Lecture…' : 'Actualiser'} onPress={() => loadOverview($)} />
+    const refreshButton = <Button key="refresh" label={busy ? '…' : '↻'} onPress={() => loadOverview($)} />
     if (!o) {
       return (
         <Box flexDirection="column" gap={1}>
-          <Text bold>Clôture des sessions</Text>
+          <Text bold color={pal.text}>Clôture des sessions</Text>
           <Text dimColor>{busy ? 'Lecture de l’état des dépôts (environ 7 s)…' : 'Aucune lecture pour le moment.'}</Text>
-          {note ? <Text color="red">✗ {note.text}</Text> : null}
+          {note ? <Text color={pal.stop}>✗ {note.text}</Text> : null}
           {refreshButton}
         </Box>
       )
     }
 
     const a = answer(o)
-    const color = { ok: 'green', stop: 'red', warn: 'yellow' }[a.tone]
+    const color = pal[a.tone]
     const when = new Date(o.at).toTimeString().slice(0, 8)
     return (
       <Box flexDirection="column" gap={1}>
@@ -420,9 +424,9 @@ export const register: Register = on => {
           <Text color={color} bold>{a.headline}   {ring(a.readyCount, a.total)}</Text>
           <Text dimColor>{a.detail}</Text>
           {a.checks.map(c => (
-            <Text color={c.ok ? 'green' : 'red'}>{c.ok ? '✓' : '✕'} {c.text}</Text>
+            <Text color={c.ok ? pal.ok : pal.stop}>{c.ok ? '✓' : '✕'} {c.text}</Text>
           ))}
-          <Text>
+          <Text color={pal.text}>
             <Text bold>Prochaine action : </Text>
             {a.next}
           </Text>
@@ -437,26 +441,23 @@ export const register: Register = on => {
             />
           ) : null}
           {refreshButton}
-          <Button key="close" label="Fermer" onPress={() => $.ui.close({ id: PANE })} />
+          <Button key="close" label="✕" onPress={() => $.ui.close({ id: PANE })} />
         </Box>
-        {note ? <Text color={note.ok ? 'green' : 'red'}>{note.ok ? '✓' : '✗'} {note.text}</Text> : null}
+        {note ? <Text color={note.ok ? pal.ok : pal.stop}>{note.ok ? '✓' : '✗'} {note.text}</Text> : null}
         <Box gap={1} flexWrap="wrap">
           {VIEWS.map(v => (
-            <Button key={`view-${v.id}`} variant={v.id === view ? 'primary' : 'secondary'} label={v.label} onPress={() => update($, viewAtom, () => v.id)} />
+            <Button key={`view-${v.id}`} variant={v.id === view ? 'primary' : 'secondary'} label={v.icon} onPress={() => update($, viewAtom, () => v.id)} />
           ))}
+          <Text dimColor>{VIEWS.find(v => v.id === view)?.label}</Text>
+          <Button key="theme" label={themeNow.icon} onPress={() => update($, themeAtom, t => nextTheme(t as ClotureTheme))} />
+          <Text dimColor>thème {themeNow.label}</Text>
         </Box>
-        {view === 'matrice' ? (
-          <Box flexDirection="column">
-            {matrix(o.repos).map(line => (
-              <Text>{line}</Text>
-            ))}
-          </Box>
-        ) : view === 'cartes' ? (
+        {view === 'cartes' ? (
           <Box gap={1} flexWrap="wrap">
             {o.repos.map(r => (
-              <Box flexDirection="column" borderStyle="round" borderColor={{ ok: 'green', stop: 'red', warn: 'yellow' }[r.tone]} paddingX={1}>
-                <Text bold>{r.name}</Text>
-                <Text>{counts(r)}</Text>
+              <Box flexDirection="column" borderStyle="round" borderColor={pal[r.tone]} paddingX={1}>
+                <Text bold color={pal.text}>{r.name}</Text>
+                <Text color={pal.text}>{counts(r)}</Text>
                 <Text dimColor>{r.ns} session(s)</Text>
               </Box>
             ))}
@@ -465,7 +466,7 @@ export const register: Register = on => {
           <Box flexDirection="column">
             {o.repos.map(r => (
               <Box flexDirection="column">
-                <Text color={{ ok: 'green', stop: 'red', warn: 'yellow' }[r.tone]}>
+                <Text color={pal[r.tone]}>
                   {r.tone === 'ok' ? '✓' : r.tone === 'stop' ? '✕' : '!'} {r.name} · {counts(r)}
                 </Text>
                 {view === 'depliant' && r.tone === 'stop' ? (
