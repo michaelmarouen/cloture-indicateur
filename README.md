@@ -1,6 +1,6 @@
 # cloture-indicateur
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757.svg)](https://github.com/michaelmarouen/cloture-indicateur) ![version](https://img.shields.io/badge/version-0.11.0-blue.svg)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757.svg)](https://github.com/michaelmarouen/cloture-indicateur) ![version](https://img.shields.io/badge/version-0.12.0-blue.svg)
 
 A Claude Code mod that tells you, live and per session, whether you can safely close it.
 Un mod Claude Code qui indique en direct, pour chaque session, si tu peux la fermer sans rien perdre.
@@ -55,6 +55,15 @@ et propose un bouton qui leur envoie un message clair : depot, branche, nombre d
 (ou d'ignorer le message si ces changements ne sont pas les leurs). Ne marche que si le mod est actif dans ces autres sessions.
 Apres un envoi (aux autres sessions ou a la session de base), le bandeau passe en suivi rapide : il revérifie le depot toutes les 5 secondes (10 minutes au plus), affiche « j'attends que les autres sessions commitent et poussent », puis passe au vert avec un toast des que tout est commite et pousse.
 Le resultat de l'envoi reste affiche sur le bandeau (« ✓ 1/1 session(s) prevenue(s) » ou « ✗ 0/1 ... » avec la raison), et un envoi refuse ou en erreur n'est jamais silencieux. **Livre ne veut pas dire lu.** Selon le moteur de Claude Code (textes lus dans son binaire), un message entre deux sessions dont les **modes de permission different** est *retenu* chez le destinataire ; une session Desktop ou non interactive ne peut pas l'approuver, et il expire sans etre lu. Le mod enregistre le mode de chaque session, avertit « ⚠ N session(s) en mode different » et affiche les avis du moteur (retenu, approuve, refuse, expire, abandonne). Un message identique est ecarte par le moteur : chaque envoi porte donc l'heure, et un delai de 15 s separe deux envois. La session qui recoit n'agit que si son propre utilisateur le demande : un message reste une information, pas un ordre. Les fiches ne sont pas effacees, juste ignorees quand elles sont perimees.
+
+## Panneau Clôture (variante 3)
+
+Le bouton **Détail** du bandeau (ou la commande `/cloture`) ouvre un panneau qui répond à la vraie question : peut-on fermer **toutes** les sessions ?
+
+- **Réponse unique** : `Non, pas encore` ou `Oui, tu peux fermer`, avec une jauge de dépôts prêts (`███░░░░░░░ 2/6`), trois vérifications (fichiers à sauver, commits à pousser, jobs lourds) et la prochaine action.
+- **Détail par dépôt en 4 affichages**, choisis par de petits boutons : Dépliant (fichiers listés, par défaut sur ordinateur), Liste, Cartes (par défaut sur mobile, plus lisible sur petit écran) et Matrice. Le choix reste possible sur toutes les surfaces.
+- **Commiter les fichiers régénérés** : bouton en deux appuis (le premier arme, le second confirme) ; il commite par pathspec, dans chaque dépôt concerné, uniquement les fichiers régénérés connus du moteur, jamais le reste.
+- La lecture se fait à la demande (environ 7 s pour six dépôts) avec `~/.claude/scripts/cloture_check.py --sessions ... --json` et les sessions vivantes du registre ; jamais sur la minuterie du bandeau. Sans le moteur, le panneau le dit au lieu d'inventer.
 
 ## Source unique (optionnel)
 

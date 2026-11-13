@@ -19,8 +19,27 @@ export type ClotureNote = { ok: boolean; text: string }
 
 export type ClotureTone = 'ok' | 'stop' | 'warn'
 
+export type ClotureView = 'depliant' | 'liste' | 'cartes' | 'matrice'
+
+export type ClotureRepo = {
+  name: string
+  path: string
+  tone: ClotureTone
+  nb: number
+  gen: number
+  fo: number
+  ah: number
+  ns: number
+  jobs: number
+  upstream: boolean
+  files: string[]
+  sessions: string[]
+}
+
+export type ClotureOverview = { at: number; repos: ClotureRepo[]; jobsRead: boolean }
+
 declare module 'claude-code' {
   interface PluginState {
-    'cloture-indicateur': { verdict: ClotureVerdict | null; isHidden: boolean; base: ClotureBase | null; isSent: boolean; siblings: ClotureSibling[]; isSiblingsSent: boolean; isWaiting: boolean; sendNote: ClotureNote | null }
+    'cloture-indicateur': { verdict: ClotureVerdict | null; isHidden: boolean; base: ClotureBase | null; isSent: boolean; siblings: ClotureSibling[]; isSiblingsSent: boolean; isWaiting: boolean; sendNote: ClotureNote | null; overview: ClotureOverview | null; view: ClotureView | null; isOverviewBusy: boolean; isArmed: boolean; overviewNote: ClotureNote | null }
   }
 }
