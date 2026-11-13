@@ -496,10 +496,10 @@ export const register: Register = on => {
       )
       return [
         canPush(r) ? back(`push-${r.name}`, (
-          <Button key={`push-${r.name}`} variant={armedRepo === r.path ? 'primary' : 'secondary'} label={armedRepo === r.path ? `✓ pousser ${r.ah} ?` : `↑ ${r.ah}`} onPress={() => pushRepo($, r)} />
+          <Button key={`push-${r.name}`} variant={armedRepo === r.path ? 'primary' : 'secondary'} label={armedRepo === r.path ? `✓ pousser ${r.ah} commit${r.ah > 1 ? 's' : ''} ?` : `↑ ${r.ah} commit${r.ah > 1 ? 's' : ''}`} onPress={() => pushRepo($, r)} />
         )) : null,
         r.tone === 'stop' && others > 0 ? back(`warn-${r.name}`, (
-          <Button key={`warn-${r.name}`} variant="secondary" label={`✉ ${others}`} onPress={() => warnRepo($, r)} />
+          <Button key={`warn-${r.name}`} variant="secondary" label={`✉ ${others} session${others > 1 ? 's' : ''}`} onPress={() => warnRepo($, r)} />
         )) : null,
       ]
     }

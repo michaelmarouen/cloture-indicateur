@@ -159,8 +159,8 @@ test('a reading older than 90 s says so', async ($, on) => {
 test('per-repo buttons: push only with commits and a remote, warn only for repos to save with other sessions', async ($, on) => {
   setup(on, { overview, view: 'liste', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null, armedPush: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Button', key: 'push-heretic' }))?.text).toBe('↑ 1')
-  expect((await ui.find({ type: 'Button', key: 'warn-heretic' }))?.text).toBe('✉ 1')
+  expect((await ui.find({ type: 'Button', key: 'push-heretic' }))?.text).toBe('↑ 1 commit')
+  expect((await ui.find({ type: 'Button', key: 'warn-heretic' }))?.text).toBe('✉ 1 session')
   expect(await ui.find({ type: 'Button', key: 'push-heretic-ui' })).toBeFalsy()
   expect(await ui.find({ type: 'Button', key: 'warn-heretic-ui' })).toBeFalsy()
   await ui.unmount()
@@ -169,7 +169,7 @@ test('per-repo buttons: push only with commits and a remote, warn only for repos
 test('an armed push asks for a second press', async ($, on) => {
   setup(on, { overview, view: 'cartes', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null, armedPush: 'D:/heretic' })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Button', key: 'push-heretic' }))?.text).toBe('✓ pousser 1 ?')
+  expect((await ui.find({ type: 'Button', key: 'push-heretic' }))?.text).toBe('✓ pousser 1 commit ?')
   await ui.unmount()
 })
 
