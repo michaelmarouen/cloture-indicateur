@@ -1,5 +1,25 @@
 {
   "name": "cloture-indicateur",
-  "owner": { "name": "michaelmarouen" },
-  "plugins": [{ "name": "cloture-indicateur", "source": "./" }]
+  "description": "Claude Code mod: live per-session git status band telling you when a session can be closed.",
+  "owner": {
+    "name": "Michael-Marouen Confortini",
+    "url": "https://github.com/michaelmarouen"
+  },
+  "plugins": [
+    {
+      "name": "cloture-indicateur",
+      "source": "./",
+      "description": "Indicateur de cloture par session : etat git du depot (propre, non commite, non pousse, sans remote).",
+      "author": {
+        "name": "Michael-Marouen Confortini"
+      },
+      "license": "MIT",
+      "keywords": [
+        "claude-code",
+        "mod",
+        "git",
+        "session"
+      ]
+    }
+  ]
 }

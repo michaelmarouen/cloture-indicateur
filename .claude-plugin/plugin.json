@@ -2,5 +2,21 @@
   "name": "cloture-indicateur",
   "version": "0.11.0",
   "description": "Indicateur de cloture par session : etat git du depot (propre, non commite, non pousse, sans remote).",
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Michael-Marouen Confortini",
+    "url": "https://github.com/michaelmarouen"
+  },
+  "homepage": "https://github.com/michaelmarouen/cloture-indicateur",
+  "repository": "https://github.com/michaelmarouen/cloture-indicateur",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "mod",
+    "git",
+    "session",
+    "status-band",
+    "workflow"
+  ],
+  "icon": "./assets/icon.png"
 }

@@ -1,5 +1,7 @@
 # cloture-indicateur
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757.svg)](https://github.com/michaelmarouen/cloture-indicateur) ![version](https://img.shields.io/badge/version-0.11.0-blue.svg)
+
 A Claude Code mod that tells you, live and per session, whether you can safely close it.
 Un mod Claude Code qui indique en direct, pour chaque session, si tu peux la fermer sans rien perdre.
 
@@ -82,3 +84,7 @@ node --test test/e2e-git.test.mjs
 Le second test cree de vrais depots git temporaires (propre, non commite, non pousse, sans remote, stash) et verifie que le mod (et `cloture_check.py` s'il existe) donnent le meme verdict. Il demande Node 22.6 ou plus recent.
 
 Les contributions sont les bienvenues (licence MIT).
+
+## Auteur et licence
+
+Michael-Marouen Confortini, licence MIT (voir `LICENSE`). Issues et suggestions : https://github.com/michaelmarouen/cloture-indicateur/issues
