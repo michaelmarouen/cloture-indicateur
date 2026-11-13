@@ -5,6 +5,8 @@
 A Claude Code mod that tells you, live and per session, whether you can safely close it.
 Un mod Claude Code qui indique en direct, pour chaque session, si tu peux la fermer sans rien perdre.
 
+![Bandeau cloture-indicateur v0.11.0 : Non, pas encore, 5 non commite(s), 2 non pousse(s), bouton Prevenir 8 session(s)](assets/banner-non.png)
+
 Au-dessus du prompt, un bandeau affiche l'etat git du depot de la session :
 
 - `Oui, tu peux fermer` : depot propre et pousse.
