@@ -419,8 +419,8 @@ export const register: Register = on => {
           ● {headline(v)}
         </Text>
         <Text color={pal.text}>· {reason(v)}</Text>
-        {v.kind !== 'PROPRE' && extras(v) ? <Text dimColor>{extras(v)}</Text> : null}
-        <Text dimColor>· {v.branch || 'hors dépôt'}</Text>
+        {v.kind !== 'PROPRE' && extras(v) ? <Text dimColor={!pal.dim} color={pal.dim}>{extras(v)}</Text> : null}
+        <Text dimColor={!pal.dim} color={pal.dim}>· {v.branch || 'hors dépôt'}</Text>
         {waiting && t === 'stop' ? <Text color={pal.warn}>· ⏳ en attente des autres sessions</Text> : null}
         {isWarnable && mismatched.length > 0 ? (
           <Text color={pal.warn}>· ⚠ {mismatched.length} session(s) en mode différent : message à approuver chez elle</Text>
@@ -476,7 +476,7 @@ export const register: Register = on => {
       return frame(
         <Box flexDirection="column" gap={1}>
           <Text bold color={pal.text}>Clôture des sessions</Text>
-          <Text dimColor>{busy ? 'Lecture de l’état des dépôts (environ 7 s)…' : 'Aucune lecture pour le moment.'}</Text>
+          <Text dimColor={!pal.dim} color={pal.dim}>{busy ? 'Lecture de l’état des dépôts (environ 7 s)…' : 'Aucune lecture pour le moment.'}</Text>
           {note ? <Text color={pal.stop}>✗ {note.text}</Text> : null}
           {refreshButton}
         </Box>,
@@ -489,13 +489,18 @@ export const register: Register = on => {
     const stale = isStale(o.at, nowMs)
     const repoButtons = (r: ClotureRepo) => {
       const others = (r.sessionIds ?? []).filter(id => id !== me).length
+      const back = (key: string, b: unknown) => (
+        <Box key={`b-${key}`} backgroundColor={pal.btn}>
+          {b}
+        </Box>
+      )
       return [
-        canPush(r) ? (
+        canPush(r) ? back(`push-${r.name}`, (
           <Button key={`push-${r.name}`} variant={armedRepo === r.path ? 'primary' : 'secondary'} label={armedRepo === r.path ? `✓ pousser ${r.ah} ?` : `↑ ${r.ah}`} onPress={() => pushRepo($, r)} />
-        ) : null,
-        r.tone === 'stop' && others > 0 ? (
+        )) : null,
+        r.tone === 'stop' && others > 0 ? back(`warn-${r.name}`, (
           <Button key={`warn-${r.name}`} variant="secondary" label={`✉ ${others}`} onPress={() => warnRepo($, r)} />
-        ) : null,
+        )) : null,
       ]
     }
     // Icon-only buttons; each one's label is a hidden Text shown on hover (scope h-<id>) in the row below.
@@ -526,12 +531,12 @@ export const register: Register = on => {
     const shown = o.repos.filter(r => r.tone !== 'ok')
     return frame(
       <Box flexDirection="column" gap={1}>
-        <Text color={stale ? pal.warn : undefined} dimColor={!stale}>
+        <Text color={stale ? pal.warn : pal.dim} dimColor={!stale && !pal.dim}>
           Lu {ageLabel(o.at, nowMs)} ({when}) : {o.repos.reduce((n, r) => n + r.ns, 0)} session(s), {o.repos.length} dépôt(s){stale ? ' · lecture ancienne, ↻ pour relire' : ''}
         </Text>
         <Box flexDirection="column" borderStyle="round" borderColor={color} backgroundColor={pal.card} paddingX={1}>
           <Text color={color} bold>{a.headline}   {ring(a.readyCount, a.total)}</Text>
-          <Text dimColor>{a.detail}</Text>
+          <Text dimColor={!pal.dim} color={pal.dim}>{a.detail}</Text>
           {a.checks.map(c => (
             <Text color={c.ok ? pal.ok : pal.stop}>{c.ok ? '✓' : '✕'} {c.text}</Text>
           ))}
@@ -542,7 +547,7 @@ export const register: Register = on => {
         </Box>
         <Box gap={1}>
           {tools.map(t => (
-            <Box key={`k-${t.id}`} hover={{ scope: `h-${t.id}` }}>
+            <Box key={`k-${t.id}`} hover={{ scope: `h-${t.id}` }} backgroundColor={pal.btn}>
               {t.button}
             </Box>
           ))}
@@ -550,7 +555,7 @@ export const register: Register = on => {
         <Box height={1}>
           {tools.map(t => (
             <Box key={`l-${t.id}`} display="none" hover={{ scope: `h-${t.id}`, display: 'flex' }}>
-              <Text dimColor>{t.label}</Text>
+              <Text dimColor={!pal.dim} color={pal.dim}>{t.label}</Text>
             </Box>
           ))}
         </Box>
@@ -565,7 +570,7 @@ export const register: Register = on => {
               <Box key={`c-${r.path}`} flexDirection="column" borderStyle="round" borderColor={pal[r.tone]} backgroundColor={pal.bg} paddingX={1}>
                 <Text bold color={pal.text}>{r.name}</Text>
                 <Text color={pal.text}>{counts(r)}</Text>
-                <Text dimColor>{r.ns} session(s)</Text>
+                <Text dimColor={!pal.dim} color={pal.dim}>{r.ns} session(s)</Text>
                 <Box gap={1}>{repoButtons(r)}</Box>
               </Box>
             ))}
@@ -583,10 +588,10 @@ export const register: Register = on => {
                 {view === 'depliant' && r.tone === 'stop' ? (
                   <Box flexDirection="column" paddingLeft={2}>
                     {r.files.map(f => (
-                      <Text dimColor>{f}</Text>
+                      <Text dimColor={!pal.dim} color={pal.dim}>{f}</Text>
                     ))}
-                    {r.nb > r.files.length ? <Text dimColor>… et {r.nb - r.files.length} autre(s)</Text> : null}
-                    <Text dimColor>{r.ns} session(s) : {r.sessions.slice(0, 3).join(', ')}</Text>
+                    {r.nb > r.files.length ? <Text dimColor={!pal.dim} color={pal.dim}>… et {r.nb - r.files.length} autre(s)</Text> : null}
+                    <Text dimColor={!pal.dim} color={pal.dim}>{r.ns} session(s) : {r.sessions.slice(0, 3).join(', ')}</Text>
                   </Box>
                 ) : null}
               </Box>

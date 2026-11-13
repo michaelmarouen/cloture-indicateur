@@ -210,3 +210,13 @@ test('an overview stored by an older version (no sessionIds) still draws', async
   expect(await ui.find({ type: 'Button', key: 'warn-heretic' })).toBeFalsy()
   await ui.unmount()
 })
+
+test('dark theme: dim texts get a readable colour and every button has a light backing', async ($, on) => {
+  setup(on, { overview, view: 'liste', theme: 'sombre', isOverviewBusy: false, isArmed: false, overviewNote: null, armedPush: null })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const age = (await ui.find({ type: 'Text', text: /^Lu / })) as { props?: { color?: string } } | null
+  expect(age?.props?.color).toBe('#9ca3af')
+  expect(await ui.find({ type: 'Box', key: 'k-view-liste', props: { backgroundColor: '#d1d5db' } })).toBeTruthy()
+  expect(await ui.find({ type: 'Box', key: 'b-push-heretic', props: { backgroundColor: '#d1d5db' } })).toBeTruthy()
+  await ui.unmount()
+})
