@@ -52,7 +52,7 @@ test('checker JSON is mapped, garbage is refused', async () => {
   expect(parseChecker('not json')).toBe(null)
   expect(parseChecker('{"kind":"INVENTE"}')).toBe(null)
   expect(tone(v!)).toBe('stop')
-  expect(headline({ kind: 'PROPRE', dirty: 0, ahead: 0, stash: 0, branch: 'main', worktrees: 0 })).toBe('OK POUR FERMER')
+  expect(headline({ kind: 'PROPRE', dirty: 0, ahead: 0, stash: 0, branch: 'main', worktrees: 0 })).toBe('Oui, tu peux fermer')
 })
 
 test('polls every 30s while not green, slowly once green', async () => {

@@ -30,7 +30,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface })
 
     expect(await ui.find({ type: 'Button', key: 'warn' })).toBeTruthy()
-    expect((await ui.find({ type: 'Text', text: /NE PAS FERMER/ }))?.text).toContain('NE PAS FERMER')
+    expect((await ui.find({ type: 'Text', text: /Non, pas encore/ }))?.text).toContain('Non, pas encore')
     expect(await ui.find({ type: 'Text', text: /3 fichier|3 non commité/ })).toBeTruthy()
     expect(await ui.find({ type: 'Button', key: 'ask' })).toBeTruthy()
     expect(await ui.find({ type: 'Button', key: 'hide' })).toBeTruthy()
@@ -42,7 +42,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface })
 
     expect(await ui.find({ type: 'Button', key: 'warn' })).toBeFalsy()
-    expect(await ui.find({ type: 'Text', text: /OK POUR FERMER/ })).toBeTruthy()
+    expect(await ui.find({ type: 'Text', text: /Oui, tu peux fermer/ })).toBeTruthy()
     expect(await ui.find({ type: 'Button', key: 'ask' })).toBeFalsy()
     await ui.unmount()
   })
