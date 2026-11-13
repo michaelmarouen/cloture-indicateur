@@ -384,7 +384,7 @@ export const register: Register = on => {
             onPress={() => askBase($, base, v)}
           />
         ) : null}
-        <Button key="detail" label="▤ Détail" onPress={() => openPane($)} />
+        <Button key="detail" label="▤" onPress={() => openPane($)} />
         <Button key="hide" label="✕" onPress={() => update($, isHidden, () => true)} />
       </Box>
     )
@@ -417,6 +417,32 @@ export const register: Register = on => {
     const a = answer(o)
     const color = pal[a.tone]
     const when = new Date(o.at).toTimeString().slice(0, 8)
+    // Icon-only buttons; each one's label is a hidden Text shown on hover (scope h-<id>) in the row below.
+    const tools = [
+      ...(a.generated > 0
+        ? [{
+            id: 'commit',
+            label: armed ? 'Appuie encore pour confirmer le commit' : 'Commiter les fichiers régénérés',
+            button: (
+              <Button
+                key="commit"
+                variant={armed ? 'primary' : 'secondary'}
+                label={armed ? `✓ ${a.generated}` : `⤓ ${a.generated}`}
+                onPress={() => commitGenerated($, o)}
+              />
+            ),
+          }]
+        : []),
+      ...VIEWS.map(v => ({
+        id: `view-${v.id}`,
+        label: `Affichage : ${v.label}`,
+        button: <Button key={`view-${v.id}`} variant={v.id === view ? 'primary' : 'secondary'} label={v.icon} onPress={() => update($, viewAtom, () => v.id)} />,
+      })),
+      { id: 'theme', label: `Thème : ${themeNow.label} (cliquer pour changer)`, button: <Button key="theme" label={themeNow.icon} onPress={() => update($, themeAtom, t => nextTheme(t as ClotureTheme))} /> },
+      { id: 'refresh', label: 'Actualiser', button: refreshButton },
+      { id: 'close', label: 'Fermer le panneau', button: <Button key="close" label="✕" onPress={() => $.ui.close({ id: PANE })} /> },
+    ]
+    const shown = o.repos.filter(r => r.tone !== 'ok')
     return (
       <Box flexDirection="column" gap={1}>
         <Text dimColor>Données de {when} : {o.repos.reduce((n, r) => n + r.ns, 0)} session(s), {o.repos.length} dépôt(s)</Text>
@@ -431,30 +457,26 @@ export const register: Register = on => {
             {a.next}
           </Text>
         </Box>
-        <Box gap={1} flexWrap="wrap">
-          {a.generated > 0 ? (
-            <Button
-              key="commit"
-              variant={armed ? 'primary' : 'secondary'}
-              label={armed ? `Confirmer : commiter ${a.generated} fichier(s) régénéré(s)` : 'Commiter les fichiers régénérés'}
-              onPress={() => commitGenerated($, o)}
-            />
-          ) : null}
-          {refreshButton}
-          <Button key="close" label="✕" onPress={() => $.ui.close({ id: PANE })} />
+        <Box gap={1}>
+          {tools.map(t => (
+            <Box key={`k-${t.id}`} hover={{ scope: `h-${t.id}` }}>
+              {t.button}
+            </Box>
+          ))}
+        </Box>
+        <Box height={1}>
+          {tools.map(t => (
+            <Box display="none" hover={{ scope: `h-${t.id}`, display: 'flex' }}>
+              <Text dimColor>{t.label}</Text>
+            </Box>
+          ))}
         </Box>
         {note ? <Text color={note.ok ? pal.ok : pal.stop}>{note.ok ? '✓' : '✗'} {note.text}</Text> : null}
-        <Box gap={1} flexWrap="wrap">
-          {VIEWS.map(v => (
-            <Button key={`view-${v.id}`} variant={v.id === view ? 'primary' : 'secondary'} label={v.icon} onPress={() => update($, viewAtom, () => v.id)} />
-          ))}
-          <Text dimColor>{VIEWS.find(v => v.id === view)?.label}</Text>
-          <Button key="theme" label={themeNow.icon} onPress={() => update($, themeAtom, t => nextTheme(t as ClotureTheme))} />
-          <Text dimColor>thème {themeNow.label}</Text>
-        </Box>
-        {view === 'cartes' ? (
+        {shown.length === 0 ? (
+          <Text color={pal.ok}>✓ Tous les dépôts sont propres et poussés.</Text>
+        ) : view === 'cartes' ? (
           <Box gap={1} flexWrap="wrap">
-            {o.repos.map(r => (
+            {shown.map(r => (
               <Box flexDirection="column" borderStyle="round" borderColor={pal[r.tone]} paddingX={1}>
                 <Text bold color={pal.text}>{r.name}</Text>
                 <Text color={pal.text}>{counts(r)}</Text>
@@ -464,7 +486,7 @@ export const register: Register = on => {
           </Box>
         ) : (
           <Box flexDirection="column">
-            {o.repos.map(r => (
+            {shown.map(r => (
               <Box flexDirection="column">
                 <Text color={pal[r.tone]}>
                   {r.tone === 'ok' ? '✓' : r.tone === 'stop' ? '✕' : '!'} {r.name} · {counts(r)}

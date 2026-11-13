@@ -64,10 +64,10 @@ test('a failed send stays visible with its reason', async ($, on) => {
   await ui.unmount()
 })
 
-test('band buttons are compact: icon Détail and icon-only hide', async ($, on) => {
+test('band buttons are compact: icon-only Détail and icon-only hide', async ($, on) => {
   on('state.get', seed({ verdict: stop, isHidden: false, base, isSent: false, siblings: [], isSiblingsSent: false, isWaiting: false, theme: 'sombre' }))
   const ui = await $.ui.mount({ ...BAND, requestId: 'band', surface: 'desktop' })
-  expect((await ui.find({ type: 'Button', key: 'detail' }))?.text).toBe('▤ Détail')
+  expect((await ui.find({ type: 'Button', key: 'detail' }))?.text).toBe('▤')
   expect((await ui.find({ type: 'Button', key: 'hide' }))?.text).toBe('✕')
   const head = (await ui.find({ type: 'Text', text: /Non, pas encore/ })) as { props?: { color?: string } } | null
   expect(head?.props?.color).toBe('#f87171')

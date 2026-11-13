@@ -63,7 +63,7 @@ test('a chosen view wins over the default, on mobile too', async ($, on) => {
 test('armed commit button asks for confirmation', async ($, on) => {
   on('state.get', seed({ overview, view: null, isOverviewBusy: false, isArmed: true, overviewNote: null }))
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect((await ui.find({ type: 'Button', key: 'commit' }))?.text).toMatch(/Confirmer : commiter 1 fichier/)
+  expect((await ui.find({ type: 'Button', key: 'commit' }))?.text).toBe('✓ 1')
   await ui.unmount()
 })
 
@@ -88,7 +88,7 @@ for (const [theme, icon, stop] of [['auto', '◐', 'red'], ['clair', '☀', '#b9
     on('state.get', seed({ overview, view: null, theme, isOverviewBusy: false, isArmed: false, overviewNote: null }))
     const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
     expect((await ui.find({ type: 'Button', key: 'theme' }))?.text).toBe(icon)
-    expect(await ui.find({ type: 'Text', text: new RegExp(`thème ${theme}`) })).toBeTruthy()
+    expect(await ui.find({ type: 'Text', text: /Thème : / })).toBeTruthy()
     const head = (await ui.find({ type: 'Text', text: /Non, pas encore/ })) as { props?: { color?: string } } | null
     expect(head?.props?.color).toBe(stop)
     await ui.unmount()
@@ -103,5 +103,32 @@ test('view and refresh buttons are icon-only', async ($, on) => {
   expect((await ui.find({ type: 'Button', key: 'view-cartes' }))?.text).toBe('▦')
   expect((await ui.find({ type: 'Button', key: 'refresh' }))?.text).toBe('↻')
   expect((await ui.find({ type: 'Button', key: 'close' }))?.text).toBe('✕')
+  await ui.unmount()
+})
+
+test('each icon button has its label ready for the hover (hidden Text, no label beside the button)', async ($, on) => {
+  on('state.get', seed({ overview, view: null, theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null }))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  for (const label of [/Affichage : Dépliant/, /Affichage : Liste/, /Affichage : Cartes/, /Thème : auto/, /^Actualiser$/, /Fermer le panneau/, /Commiter les fichiers régénérés/]) {
+    expect(await ui.find({ type: 'Text', text: label })).toBeTruthy()
+  }
+  await ui.unmount()
+})
+
+test('repos that are clean and pushed are not listed (only counted in the gauge)', async ($, on) => {
+  on('state.get', seed({ overview, view: 'liste', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null }))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /heretic · 2 à sauver/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /tradeManager/ })).toBeFalsy()
+  expect((await ui.find({ type: 'Text', text: /Non, pas encore/ }))?.text).toContain('1/3')
+  await ui.unmount()
+})
+
+test('when every repo is clean the detail says so instead of listing them', async ($, on) => {
+  const clean = { ...overview, repos: overview.repos.filter(r => r.tone === 'ok') }
+  on('state.get', seed({ overview: clean, view: 'cartes', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null }))
+  const ui = await $.ui.mount({ ...PANE, surface: 'mobile' })
+  expect(await ui.find({ type: 'Text', text: /Tous les dépôts sont propres et poussés/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /Oui, tu peux fermer/ })).toBeTruthy()
   await ui.unmount()
 })

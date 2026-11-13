@@ -1,6 +1,6 @@
 # cloture-indicateur
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757.svg)](https://github.com/michaelmarouen/cloture-indicateur) ![version](https://img.shields.io/badge/version-0.12.1-blue.svg)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757.svg)](https://github.com/michaelmarouen/cloture-indicateur) ![version](https://img.shields.io/badge/version-0.12.2-blue.svg)
 
 A Claude Code mod that tells you, live and per session, whether you can safely close it.
 Un mod Claude Code qui indique en direct, pour chaque session, si tu peux la fermer sans rien perdre.
@@ -61,7 +61,8 @@ Le resultat de l'envoi reste affiche sur le bandeau (« ✓ 1/1 session(s) preve
 Le bouton **▤ Détail** du bandeau (ou la commande `/cloture`) ouvre un panneau qui répond à la vraie question : peut-on fermer **toutes** les sessions ?
 
 - **Réponse unique** : `Non, pas encore` ou `Oui, tu peux fermer`, avec une jauge de dépôts prêts (`███░░░░░░░ 2/6`), trois vérifications (fichiers à sauver, commits à pousser, jobs lourds) et la prochaine action.
-- **Détail par dépôt en 3 affichages**, choisis par de petits boutons à icône : `▾` Dépliant (fichiers listés, par défaut sur ordinateur), `≡` Liste et `▦` Cartes (par défaut sur mobile, plus lisible sur petit écran). Le choix reste possible sur toutes les surfaces ; le nom de l'affichage actif est écrit à côté.
+- **Détail par dépôt en 3 affichages**, choisis par de petits boutons à icône : `▾` Dépliant (fichiers listés, par défaut sur ordinateur), `≡` Liste et `▦` Cartes (par défaut sur mobile, plus lisible sur petit écran). Le choix reste possible sur toutes les surfaces. Tous les boutons tiennent sur une seule ligne, sans libellé : le nom de chaque bouton s'affiche au survol, sur la ligne juste dessous.
+- Le détail ne liste que les dépôts qui demandent une action (à sauver, à pousser ou sans distant) ; les dépôts propres et poussés ne sont comptés que dans la jauge. Si tout est propre, il le dit en une ligne.
 - **Thème** : le bouton `◐` / `☀` / `☾` passe de auto (couleurs du terminal) à clair puis sombre (couleurs fixes, contrastées sur fond clair ou sombre). Le bandeau suit le même thème.
 - **Commiter les fichiers régénérés** : bouton en deux appuis (le premier arme, le second confirme) ; il commite par pathspec, dans chaque dépôt concerné, uniquement les fichiers régénérés connus du moteur, jamais le reste.
 - La lecture se fait à la demande (environ 7 s pour six dépôts) avec `~/.claude/scripts/cloture_check.py --sessions ... --json` et les sessions vivantes du registre ; jamais sur la minuterie du bandeau. Sans le moteur, le panneau le dit au lieu d'inventer.
