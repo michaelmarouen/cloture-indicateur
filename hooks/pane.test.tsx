@@ -201,3 +201,12 @@ test('pressing the armed push button runs git push on that repo, never forced', 
   expect(calls[0]!.some(a => /force|-f$/.test(a))).toBe(false)
   await ui.unmount()
 })
+
+test('an overview stored by an older version (no sessionIds) still draws', async ($, on) => {
+  const old = { ...overview, repos: overview.repos.map(({ sessionIds: _s, ...r }) => r) }
+  setup(on, { overview: old, view: 'liste', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null, armedPush: null })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /Non, pas encore/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Button', key: 'warn-heretic' })).toBeFalsy()
+  await ui.unmount()
+})

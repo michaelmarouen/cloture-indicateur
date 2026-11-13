@@ -276,7 +276,7 @@ async function pushRepo($: EngineInterface, r: ClotureRepo) {
 // Warn the other sessions of one repo (the message is the same one the band sends).
 async function warnRepo($: EngineInterface, r: ClotureRepo) {
   const me = await $.session.id()
-  const targets = r.sessionIds.filter(id => id !== me).map(id => ({ id, label: '', mode: '' }))
+  const targets = (r.sessionIds ?? []).filter(id => id !== me).map(id => ({ id, label: '', mode: '' }))
   if (targets.length === 0) return
   const now = await $.clock.now()
   if (now - lastSendAt < 15_000) {
@@ -488,7 +488,7 @@ export const register: Register = on => {
     const when = new Date(o.at).toTimeString().slice(0, 8)
     const stale = isStale(o.at, nowMs)
     const repoButtons = (r: ClotureRepo) => {
-      const others = r.sessionIds.filter(id => id !== me).length
+      const others = (r.sessionIds ?? []).filter(id => id !== me).length
       return [
         canPush(r) ? (
           <Button key={`push-${r.name}`} variant={armedRepo === r.path ? 'primary' : 'secondary'} label={armedRepo === r.path ? `✓ pousser ${r.ah} ?` : `↑ ${r.ah}`} onPress={() => pushRepo($, r)} />
