@@ -68,7 +68,7 @@ test('a chosen view wins over the default, on mobile too', async ($, on) => {
 test('armed commit button asks for confirmation', async ($, on) => {
   setup(on, { overview, view: null, isOverviewBusy: false, isArmed: true, overviewNote: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect((await ui.find({ type: 'Button', key: 'commit' }))?.text).toBe('✓ 1')
+  expect((await ui.find({ type: 'Button', key: 'commit' }))?.text).toBe('✓ confirmer le commit (1)')
   await ui.unmount()
 })
 

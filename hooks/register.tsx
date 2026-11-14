@@ -261,11 +261,19 @@ async function commitGenerated($: EngineInterface, o: ClotureOverview) {
   let ok = true
   for (const repo of o.repos.filter(x => x.gen > 0)) {
     const r = await $.process.run(['python', '-I', checkerScript(home), '--commit-generated', repo.path], { timeoutMs: 60000 })
-    ok = ok && r.exitCode === 0
-    lines.push(`${repo.name} : ${r.exitCode === 0 ? 'commité' : `refusé (${(r.stderr || r.stdout).trim().slice(0, 80)})`}`)
+    let res: { ok?: boolean; committed?: number; detail?: string } = {}
+    try {
+      res = JSON.parse(r.stdout.trim().split('\n').pop() ?? '{}')
+    } catch {
+      // not JSON: treated as a refusal below
+    }
+    const done = r.exitCode === 0 && res.ok === true && (res.committed ?? 0) > 0
+    ok = ok && done
+    lines.push(`${repo.name} : ${done ? `${res.committed} fichier(s) commité(s)` : `refusé (${res.detail || (r.stderr || r.stdout).trim().slice(0, 80) || 'rien à commiter'})`}`)
   }
+  // The read below clears any note, so the result is written after it.
+  await loadOverview($)
   await update($, overviewNote, () => ({ ok, text: lines.join(' | ') || 'aucun fichier régénéré' }))
-  void loadOverview($)
 }
 
 // Repos that ask for it ("auto_commit_generated" in cloture_rules.json) get their generated/evidence files committed without a click,
@@ -566,7 +574,7 @@ export const register: Register = on => {
     const viewCells = VIEWS.map(v => cell(`view-${v.id}`, `Affichage : ${v.label}`, v.id === view, `view-${v.id}`, v.icon, () => update($, viewAtom, () => v.id)))
     const themeCells = THEMES.map(th => cell(`theme-${th.id}`, `Thème : ${th.label}`, th.id === theme, `theme-${th.id}`, th.icon, () => update($, themeAtom, () => th.id)))
     const commitCell = a.generated > 0
-      ? [cell('commit', armed ? 'Appuie encore pour confirmer le commit' : 'Commiter les fichiers régénérés', armed, 'commit', armed ? `✓ ${a.generated}` : `⤓ ${a.generated}`, () => commitGenerated($, o))]
+      ? [cell('commit', armed ? 'Appuie encore pour confirmer le commit' : 'Commiter les fichiers régénérés', armed, 'commit', armed ? `✓ confirmer le commit (${a.generated})` : `⤓ commiter ${a.generated} généré(s) · ${o.repos.reduce((n, r) => n + r.nb, 0)} non commité(s)`, () => commitGenerated($, o))]
       : []
     const helps = [...commitCell, ...viewCells, ...themeCells, { id: 'refresh', label: 'Actualiser', node: null }, { id: 'close', label: 'Fermer le panneau', node: null }]
     const segment = (cells: { node: unknown }[]) => (
