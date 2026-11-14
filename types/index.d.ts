@@ -21,7 +21,7 @@ export type ClotureTone = 'ok' | 'stop' | 'warn'
 
 export type ClotureView = 'depliant' | 'liste'
 
-export type ClotureTheme = 'auto' | 'clair' | 'sombre'
+export type ClotureTheme = 'auto' | 'clair'
 
 export type ClotureRepo = {
   name: string

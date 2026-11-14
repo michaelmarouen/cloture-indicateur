@@ -84,18 +84,15 @@ test('two views only, each with an icon (no matrix in the mod)', () => {
   expect(VIEWS.every(v => v.icon.length === 1)).toBe(true)
 })
 
-test('theme cycles auto, clair, sombre and back', () => {
-  expect(THEMES.map(t => t.id)).toEqual(['auto', 'clair', 'sombre'])
+test('theme cycles auto, clair and back', () => {
+  expect(THEMES.map(t => t.id)).toEqual(['auto', 'clair'])
   expect(nextTheme('auto')).toBe('clair')
-  expect(nextTheme('clair')).toBe('sombre')
-  expect(nextTheme('sombre')).toBe('auto')
+  expect(nextTheme('clair')).toBe('auto')
 })
 
-test('palette: auto keeps named terminal colours, clair and sombre are fixed hex', () => {
+test('palette: auto keeps named terminal colours, clair is fixed hex', () => {
   expect(palette('auto')).toEqual({ ok: 'green', stop: 'red', warn: 'yellow', text: undefined })
   expect(palette('clair').stop).toMatch(/^#[0-9a-f]{6}$/)
-  expect(palette('sombre').stop).toMatch(/^#[0-9a-f]{6}$/)
-  expect(palette('clair').text).not.toBe(palette('sombre').text)
 })
 
 test('ageLabel and isStale', () => {
@@ -124,6 +121,6 @@ test('statusText gives the machine-wide gauge and every theme has its page and c
   const o = { at: 0, jobsRead: true, repos: [] }
   expect(statusText(answer(o))).toBe('cloture: ● 0/0 prêts')
   expect(palette('clair').bg).toBe('#ffffff')
-  expect(palette('sombre').card).toBe('#2a2a2a')
+  expect(palette('clair').card).toBe('#f3f4f6')
   expect(palette('auto').bg).toBeUndefined()
 })

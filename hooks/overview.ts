@@ -33,7 +33,6 @@ export const VIEWS: readonly { id: ClotureView; label: string; icon: string }[] 
 export const THEMES: readonly { id: ClotureTheme; label: string; icon: string }[] = [
   { id: 'auto', label: 'auto', icon: '◐' },
   { id: 'clair', label: 'clair', icon: '☀' },
-  { id: 'sombre', label: 'sombre', icon: '☾' },
 ]
 
 export function nextTheme(t: ClotureTheme): ClotureTheme {
@@ -43,11 +42,10 @@ export function nextTheme(t: ClotureTheme): ClotureTheme {
 
 export type Palette = { ok: string; stop: string; warn: string; text: string | undefined; bg: string | undefined; card: string | undefined; dim: string | undefined; btn: string | undefined }
 
-// auto: the terminal's own named colours (they follow its theme). clair / sombre: fixed colours with
-// enough contrast on a light or a dark background (WCAG AA against white and against #1e1e1e).
+// auto: the terminal's own named colours (they follow its theme). clair: fixed colours with
+// enough contrast on a white background (WCAG AA).
 export function palette(t: ClotureTheme): Palette {
   if (t === 'clair') return { ok: '#15803d', stop: '#b91c1c', warn: '#a16207', text: '#1f2937', bg: '#ffffff', card: '#f3f4f6', dim: '#6b7280', btn: undefined }
-  if (t === 'sombre') return { ok: '#4ade80', stop: '#f87171', warn: '#fbbf24', text: '#e5e7eb', bg: '#1e1e1e', card: '#2a2a2a', dim: '#9ca3af', btn: '#d1d5db' }
   return { ok: 'green', stop: 'red', warn: 'yellow', text: undefined, bg: undefined, card: undefined, dim: undefined, btn: undefined }
 }
 

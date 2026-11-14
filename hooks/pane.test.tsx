@@ -88,7 +88,7 @@ test('empty pane explains itself and a failed read stays visible', async ($, on)
   await ui.unmount()
 })
 
-for (const [theme, icon, stop] of [['auto', '◐', 'red'], ['clair', '☀', '#b91c1c'], ['sombre', '☾', '#f87171']] as const) {
+for (const [theme, icon, stop] of [['auto', '◐', 'red'], ['clair', '☀', '#b91c1c']] as const) {
   test(`theme ${theme}: toggle shows ${icon} and the answer uses its colour`, async ($, on) => {
     setup(on, { overview, view: null, theme, isOverviewBusy: false, isArmed: false, overviewNote: null })
     const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
@@ -169,7 +169,7 @@ test('an armed push asks for a second press', async ($, on) => {
   await ui.unmount()
 })
 
-for (const [theme, bg, card] of [['auto', undefined, undefined], ['clair', '#ffffff', '#f3f4f6'], ['sombre', '#1e1e1e', '#2a2a2a']] as const) {
+for (const [theme, bg, card] of [['auto', undefined, undefined], ['clair', '#ffffff', '#f3f4f6']] as const) {
   test(`theme ${theme} paints the whole pane (page and cards), not only the text`, async ($, on) => {
     setup(on, { overview, view: 'liste', theme, isOverviewBusy: false, isArmed: false, overviewNote: null })
     const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
@@ -207,16 +207,3 @@ test('an overview stored by an older version (no sessionIds) still draws', async
   await ui.unmount()
 })
 
-test('dark theme: dim texts get a readable colour and every button has a light backing', async ($, on) => {
-  setup(on, { overview, view: 'liste', theme: 'sombre', isOverviewBusy: false, isArmed: false, overviewNote: null, armedPush: null })
-  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  const age = (await ui.find({ type: 'Text', text: /^Lu / })) as { props?: { color?: string } } | null
-  expect(age?.props?.color).toBe('#9ca3af')
-  expect((await ui.find({ type: 'Button', key: 'view-liste' }))?.text).toBe('≡')
-  const idle = (await ui.find({ type: 'Button', key: 'view-depliant' }))?.text
-  expect(idle?.trim()).toBe('▾')
-  const chipPush = (await ui.find({ type: 'Box', key: 'b-push-heretic' })) as { props?: { backgroundColor?: string; borderStyle?: string } } | null
-  expect(chipPush?.props?.backgroundColor).toBe('#2a2a2a')
-  expect(chipPush?.props?.borderStyle).toBe('round')
-  await ui.unmount()
-})
