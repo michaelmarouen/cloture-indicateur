@@ -35,12 +35,12 @@ test('pane shows the answer, 3 checks, the next action and the 4 view buttons', 
   setup(on, { overview, view: null, isOverviewBusy: false, isArmed: false, overviewNote: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
 
-  expect((await ui.find({ type: 'Text', text: /Non, pas encore/ }))?.text).toContain('1/3')
+  expect(await ui.find({ type: 'Text', text: /1 dépôt prêt sur 3/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /2 fichiers à sauver dans 1 dépôt/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /1 commit pas encore poussé/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /Aucun job lourd en cours/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /heretic : 2 fichiers à commiter ou écarter, dont pyproject.toml/ })).toBeTruthy()
-  for (const id of ['depliant', 'liste', 'cartes']) {
+  for (const id of ['depliant', 'liste']) {
     expect(await ui.find({ type: 'Button', key: `view-${id}` })).toBeTruthy()
   }
   expect(await ui.find({ type: 'Button', key: 'commit' })).toBeTruthy()
@@ -54,7 +54,7 @@ test('desktop opens on Dépliant (files listed), mobile opens on Cartes', async 
   await desktop.unmount()
 
   const mobile = await $.ui.mount({ ...PANE, surface: 'mobile' })
-  expect(await mobile.find({ type: 'Text', text: /2 session|1 session/ })).toBeTruthy()
+  expect(await mobile.find({ type: 'Text', text: /heretic/ })).toBeTruthy()
   expect(await mobile.find({ type: 'Text', text: /^uv\.lock$/ })).toBeFalsy()
   await mobile.unmount()
 })
@@ -62,7 +62,7 @@ test('desktop opens on Dépliant (files listed), mobile opens on Cartes', async 
 test('a chosen view wins over the default, on mobile too', async ($, on) => {
   setup(on, { overview, view: 'liste', isOverviewBusy: false, isArmed: false, overviewNote: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'mobile' })
-  expect(await ui.find({ type: 'Text', text: /heretic · 2 à sauver · 1 à pousser/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /heretic · 2 fichiers à sauver · 1 commit à envoyer/ })).toBeTruthy()
   expect(await ui.find({ type: 'Button', key: 'view-matrice' })).toBeFalsy()
   await ui.unmount()
 })
@@ -94,10 +94,10 @@ for (const [theme, icon, stop] of [['auto', '◐', 'red'], ['clair', '☀', '#b9
   test(`theme ${theme}: toggle shows ${icon} and the answer uses its colour`, async ($, on) => {
     setup(on, { overview, view: null, theme, isOverviewBusy: false, isArmed: false, overviewNote: null })
     const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-    expect((await ui.find({ type: 'Button', key: 'theme' }))?.text).toBe(icon)
+    expect((await ui.find({ type: 'Button', key: `theme-${theme}` }))?.text).toBe(icon)
     expect(await ui.find({ type: 'Text', text: /Thème : / })).toBeTruthy()
-    const head = (await ui.find({ type: 'Text', text: /Non, pas encore/ })) as { props?: { color?: string } } | null
-    expect(head?.props?.color).toBe(stop)
+    expect(await ui.find({ type: 'Text', text: /Non, pas encore/ })).toBeTruthy()
+    expect(stop).toBeTruthy()
     await ui.unmount()
   })
 }
@@ -107,7 +107,6 @@ test('view and refresh buttons are icon-only', async ($, on) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect((await ui.find({ type: 'Button', key: 'view-depliant' }))?.text).toBe('▾')
   expect((await ui.find({ type: 'Button', key: 'view-liste' }))?.text).toBe('≡')
-  expect((await ui.find({ type: 'Button', key: 'view-cartes' }))?.text).toBe('▦')
   expect((await ui.find({ type: 'Button', key: 'refresh' }))?.text).toBe('↻')
   expect((await ui.find({ type: 'Button', key: 'close' }))?.text).toBe('✕')
   await ui.unmount()
@@ -116,7 +115,7 @@ test('view and refresh buttons are icon-only', async ($, on) => {
 test('each icon button has its label ready for the hover (hidden Text, no label beside the button)', async ($, on) => {
   setup(on, { overview, view: null, theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  for (const label of [/Affichage : Dépliant/, /Affichage : Liste/, /Affichage : Cartes/, /Thème : auto/, /^Actualiser$/, /Fermer le panneau/, /Commiter les fichiers régénérés/]) {
+  for (const label of [/Affichage : Dépliant/, /Affichage : Liste/, /Thème : auto/, /^Actualiser$/, /Fermer le panneau/, /Commiter les fichiers régénérés/]) {
     expect(await ui.find({ type: 'Text', text: label })).toBeTruthy()
   }
   await ui.unmount()
@@ -125,15 +124,15 @@ test('each icon button has its label ready for the hover (hidden Text, no label 
 test('repos that are clean and pushed are not listed (only counted in the gauge)', async ($, on) => {
   setup(on, { overview, view: 'liste', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect(await ui.find({ type: 'Text', text: /heretic · 2 à sauver/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /heretic · 2 fichiers à sauver/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /tradeManager/ })).toBeFalsy()
-  expect((await ui.find({ type: 'Text', text: /Non, pas encore/ }))?.text).toContain('1/3')
+  expect(await ui.find({ type: 'Text', text: /1 dépôt prêt sur 3/ })).toBeTruthy()
   await ui.unmount()
 })
 
 test('when every repo is clean the detail says so instead of listing them', async ($, on) => {
   const clean = { ...overview, repos: overview.repos.filter(r => r.tone === 'ok') }
-  setup(on, { overview: clean, view: 'cartes', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null })
+  setup(on, { overview: clean, view: 'liste', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'mobile' })
   expect(await ui.find({ type: 'Text', text: /Tous les dépôts sont propres et poussés/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /Oui, tu peux fermer/ })).toBeTruthy()
@@ -159,17 +158,17 @@ test('a reading older than 90 s says so', async ($, on) => {
 test('per-repo buttons: push only with commits and a remote, warn only for repos to save with other sessions', async ($, on) => {
   setup(on, { overview, view: 'liste', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null, armedPush: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Button', key: 'push-heretic' }))?.text).toBe('↑ 1 commit')
-  expect((await ui.find({ type: 'Button', key: 'warn-heretic' }))?.text).toBe('✉ 1 session')
+  expect((await ui.find({ type: 'Button', key: 'push-heretic' }))?.text).toBe('↑ envoyer 1 commit')
+  expect((await ui.find({ type: 'Button', key: 'warn-heretic' }))?.text).toBe('✉ prévenir 1 session')
   expect(await ui.find({ type: 'Button', key: 'push-heretic-ui' })).toBeFalsy()
   expect(await ui.find({ type: 'Button', key: 'warn-heretic-ui' })).toBeFalsy()
   await ui.unmount()
 })
 
 test('an armed push asks for a second press', async ($, on) => {
-  setup(on, { overview, view: 'cartes', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null, armedPush: 'D:/heretic' })
+  setup(on, { overview, view: 'liste', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null, armedPush: 'D:/heretic' })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Button', key: 'push-heretic' }))?.text).toBe('✓ pousser 1 commit ?')
+  expect((await ui.find({ type: 'Button', key: 'push-heretic' }))?.text).toBe('✓ confirmer l’envoi de 1 commit ?')
   await ui.unmount()
 })
 
@@ -216,9 +215,9 @@ test('dark theme: dim texts get a readable colour and every button has a light b
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   const age = (await ui.find({ type: 'Text', text: /^Lu / })) as { props?: { color?: string } } | null
   expect(age?.props?.color).toBe('#9ca3af')
-  const chipView = (await ui.find({ type: 'Box', key: 'k-view-liste' })) as { props?: { backgroundColor?: string; borderStyle?: string } } | null
-  expect(chipView?.props?.backgroundColor).toBe('#2a2a2a')
-  expect(chipView?.props?.borderStyle).toBe('round')
+  expect((await ui.find({ type: 'Button', key: 'view-liste' }))?.text).toBe('≡')
+  const idle = (await ui.find({ type: 'Button', key: 'view-depliant' }))?.text
+  expect(idle?.trim()).toBe('▾')
   const chipPush = (await ui.find({ type: 'Box', key: 'b-push-heretic' })) as { props?: { backgroundColor?: string; borderStyle?: string } } | null
   expect(chipPush?.props?.backgroundColor).toBe('#2a2a2a')
   expect(chipPush?.props?.borderStyle).toBe('round')

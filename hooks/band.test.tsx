@@ -31,7 +31,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     expect(await ui.find({ type: 'Button', key: 'warn' })).toBeTruthy()
     expect((await ui.find({ type: 'Text', text: /Non, pas encore/ }))?.text).toContain('Non, pas encore')
-    expect(await ui.find({ type: 'Text', text: /3 fichier|3 non commité/ })).toBeTruthy()
+    expect(await ui.find({ type: 'Text', text: /3 non commité/ })).toBeTruthy()
     expect(await ui.find({ type: 'Button', key: 'ask' })).toBeTruthy()
     expect(await ui.find({ type: 'Button', key: 'hide' })).toBeTruthy()
     await ui.unmount()
@@ -70,6 +70,6 @@ test('band buttons are compact: icon-only Détail and icon-only hide', async ($,
   expect((await ui.find({ type: 'Button', key: 'detail' }))?.text).toBe('▤')
   expect((await ui.find({ type: 'Button', key: 'hide' }))?.text).toBe('✕')
   const head = (await ui.find({ type: 'Text', text: /Non, pas encore/ })) as { props?: { color?: string } } | null
-  expect(head?.props?.color).toBe('#f87171')
+  expect(head?.props?.color).toBe('white')
   await ui.unmount()
 })

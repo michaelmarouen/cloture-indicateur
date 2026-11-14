@@ -52,18 +52,18 @@ test('unread jobs are never reported as none', () => {
 })
 
 test('ring, counts and default view', () => {
-  expect(ring(2, 6)).toBe('███░░░░░░░ 2/6')
-  expect(ring(0, 0)).toBe('░░░░░░░░░░ 0/0')
+  expect(ring(2, 6)).toBe('███░░░░░░░ 2 dépôts prêts sur 6')
+  expect(ring(0, 0)).toBe('░░░░░░░░░░ 0 dépôt prêt sur 0')
   const o = parseOverview(raw, 1)!
-  expect(counts(o.repos[0]!)).toBe('2 à sauver · 1 à pousser')
+  expect(counts(o.repos[0]!)).toBe('2 fichiers à sauver · 1 commit à envoyer')
   expect(counts(o.repos[1]!)).toBe('aucun distant')
   expect(counts(o.repos[2]!)).toBe('propre et poussé')
-  expect(defaultView('mobile')).toBe('cartes')
+  expect(defaultView('mobile')).toBe('liste')
   expect(defaultView('desktop')).toBe('depliant')
 })
 
-test('three views only, each with an icon (no matrix in the mod)', () => {
-  expect(VIEWS.map(v => v.id)).toEqual(['depliant', 'liste', 'cartes'])
+test('two views only, each with an icon (no matrix in the mod)', () => {
+  expect(VIEWS.map(v => v.id)).toEqual(['depliant', 'liste'])
   expect(VIEWS.every(v => v.icon.length === 1)).toBe(true)
 })
 

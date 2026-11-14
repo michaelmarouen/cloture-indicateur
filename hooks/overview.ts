@@ -6,7 +6,6 @@ const MAX_FILES = 8
 export const VIEWS: readonly { id: ClotureView; label: string; icon: string }[] = [
   { id: 'depliant', label: 'Dépliant', icon: '▾' },
   { id: 'liste', label: 'Liste', icon: '≡' },
-  { id: 'cartes', label: 'Cartes', icon: '▦' },
 ]
 
 export const THEMES: readonly { id: ClotureTheme; label: string; icon: string }[] = [
@@ -96,7 +95,7 @@ export type Answer = {
   generated: number
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`
+export const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`
 
 export function answer(o: ClotureOverview): Answer {
   const stop = o.repos.filter(r => r.tone === 'stop')
@@ -134,13 +133,13 @@ export function answer(o: ClotureOverview): Answer {
 
 export function ring(ready: number, total: number, width = 10): string {
   const filled = total > 0 ? Math.round((ready / total) * width) : 0
-  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)} ${ready}/${total}`
+  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)} ${plural(ready, 'dépôt prêt', 'dépôts prêts')} sur ${total}`
 }
 
 export function counts(r: ClotureRepo): string {
   const bits: string[] = []
-  if (r.nb > 0) bits.push(`${r.nb} à sauver`)
-  if (r.ah > 0) bits.push(`${r.ah} à pousser`)
+  if (r.nb > 0) bits.push(`${plural(r.nb, 'fichier', 'fichiers')} à sauver`)
+  if (r.ah > 0) bits.push(`${plural(r.ah, 'commit', 'commits')} à envoyer`)
   if (!r.upstream) bits.push('aucun distant')
   if (bits.length === 0) bits.push('propre et poussé')
   return bits.join(' · ')
@@ -177,5 +176,5 @@ export function becameReady(previous: ClotureTone | null, next: ClotureTone): bo
 }
 
 export function defaultView(surface: string): ClotureView {
-  return surface === 'mobile' ? 'cartes' : 'depliant'
+  return surface === 'mobile' ? 'liste' : 'depliant'
 }

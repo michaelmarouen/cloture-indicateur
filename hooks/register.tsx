@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { ClotureBase, ClotureNote, ClotureOverview, ClotureRepo, ClotureSibling, ClotureTheme, ClotureTone, ClotureVerdict, ClotureView } from '../types'
 import { buildMessage, canAsk, parseBase } from './base'
-import { AUTO_MS, PANE_LIVE_MS, READY_MIN_GAP_MS, THEMES, VIEWS, ageLabel, answer, becameReady, canPush, counts, defaultView, isStale, nextTheme, palette, parseOverview, ring, statusText } from './overview'
+import { AUTO_MS, PANE_LIVE_MS, READY_MIN_GAP_MS, THEMES, VIEWS, ageLabel, answer, becameReady, canPush, counts, defaultView, isStale, nextTheme, palette, parseOverview, plural, ring, statusText } from './overview'
 import { BEAT_MS, FRESH_MS, buildSiblingMessage, classifyNotice, makeLabel, modeMismatch, parseEntry, repoKey, sendAll, siblings, summarize } from './registry'
 import { TICK_MS, WAIT_MAX_MS, baselinePath, checkerScript, computeVerdict, describe, extras, headline, parseChecker, reason, shouldRefresh, tone } from './git-state'
 
@@ -17,6 +17,8 @@ const sendNote = atom({ plugin: 'cloture-indicateur', key: 'sendNote' } as const
 const isSent = atom({ plugin: 'cloture-indicateur', key: 'isSent' } as const, false)
 const overviewAtom = atom({ plugin: 'cloture-indicateur', key: 'overview' } as const, null)
 const viewAtom = atom({ plugin: 'cloture-indicateur', key: 'view' } as const, null)
+// The whole band is tinted by the verdict; white text reads on all three, whatever the pane theme.
+const BAND_BG = { stop: '#991b1b', warn: '#92400e', ok: '#166534' } as const
 const themeAtom = atom({ plugin: 'cloture-indicateur', key: 'theme' } as const, 'auto')
 const isOverviewBusy = atom({ plugin: 'cloture-indicateur', key: 'isOverviewBusy' } as const, false)
 const isArmed = atom({ plugin: 'cloture-indicateur', key: 'isArmed' } as const, false)
@@ -192,8 +194,11 @@ async function tombstone($: EngineInterface) {
 
 // Whole-machine view for the pane: every live session of the registry, handed to the same checker the
 // Angela /cloture page uses. On demand only (about 7 s for six repos), never on the band's timer.
+let overviewRunningSince = 0
 async function loadOverview($: EngineInterface) {
-  if (await read($, isOverviewBusy)) return
+  // The busy flag is persisted: after a reload mid-read it stays true forever. Only this module instance knows a read is live.
+  if ((await read($, isOverviewBusy)) && overviewRunningSince && (await $.clock.now()) - overviewRunningSince < 70000) return
+  overviewRunningSince = await $.clock.now()
   await update($, isOverviewBusy, () => true)
   try {
     const home = await $.env.get('USERPROFILE')
@@ -226,8 +231,15 @@ async function loadOverview($: EngineInterface) {
   } catch (err) {
     await update($, overviewNote, () => ({ ok: false, text: `lecture impossible : ${err instanceof Error ? err.message : 'erreur'}` }))
   } finally {
+    overviewRunningSince = 0
     await update($, isOverviewBusy, () => false)
   }
+}
+
+// The band opens the pane, and closes it when it is already up (the engine's own list of this plugin's panes).
+async function togglePane($: EngineInterface) {
+  if ((await $.ui.panes()).some(p => p.id === PANE)) await $.ui.close({ id: PANE })
+  else await openPane($)
 }
 
 async function openPane($: EngineInterface) {
@@ -413,37 +425,32 @@ export const register: Register = on => {
     const note = (await read($, sendNote)) as ClotureNote | null
     const mismatched = modeMismatch(myMode, others)
 
+    // Chrome-free, white glyph only (no white block behind it).
+    const pill = (key: string, _variant: 'primary' | 'secondary', text: string, onPress: () => void) => (
+      <Box key={`b-${key}`} hover={{ scope: `bb-${key}` }}>
+        <Button key={key} plain onPress={onPress}>
+          <Text bold color="white">{text}</Text>
+        </Button>
+      </Box>
+    )
+
     return (
-      <Box gap={1} flexWrap="wrap">
-        <Text color={color} bold>
-          ● {headline(v)}
-        </Text>
-        <Text color={pal.text}>· {reason(v)}</Text>
-        {v.kind !== 'PROPRE' && extras(v) ? <Text dimColor={!pal.dim} color={pal.dim}>{extras(v)}</Text> : null}
-        <Text dimColor={!pal.dim} color={pal.dim}>· {v.branch || 'hors dépôt'}</Text>
-        {waiting && t === 'stop' ? <Text color={pal.warn}>· ⏳ en attente des autres sessions</Text> : null}
+      <Box gap={1} flexWrap="wrap" paddingX={1} backgroundColor={BAND_BG[t]}>
+        <Button key="toggle" plain onPress={() => togglePane($)}>
+          <Text bold color="white">● {headline(v)}</Text>
+          <Text color="white"> · {reason(v)}</Text>
+          {v.kind !== 'PROPRE' && extras(v) ? <Text color="white" dimColor> {extras(v)}</Text> : null}
+          <Text color="white" dimColor> · {v.branch || 'hors dépôt'}</Text>
+        </Button>
+        {waiting && t === 'stop' ? <Text color="white">· ⏳ en attente des autres sessions</Text> : null}
         {isWarnable && mismatched.length > 0 ? (
-          <Text color={pal.warn}>· ⚠ {mismatched.length} session(s) en mode différent : message à approuver chez elle</Text>
+          <Text color="white">· ⚠ {mismatched.length} session(s) en mode différent : message à approuver chez elle</Text>
         ) : null}
-        {note ? <Text color={note.ok ? pal.ok : pal.stop}>· {note.ok ? '✓' : '✗'} {note.text}</Text> : null}
-        {isWarnable ? (
-          <Button
-            key="warn"
-            variant={isAskable ? 'secondary' : 'primary'}
-            label={`${sentSiblings ? 'Reprévenir' : 'Prévenir'} ${others.length} session(s)`}
-            onPress={() => warnSiblings($, others, v)}
-          />
-        ) : null}
-        {isAskable && base ? (
-          <Button
-            key="ask"
-            variant="primary"
-            label={sent ? 'Redemander à la base' : 'Demander à la base'}
-            onPress={() => askBase($, base, v)}
-          />
-        ) : null}
-        <Button key="detail" label="▤" onPress={() => openPane($)} />
-        <Button key="hide" label="✕" onPress={() => update($, isHidden, () => true)} />
+        {note ? <Text color="white" bold>· {note.ok ? '✓' : '✗'} {note.text}</Text> : null}
+        {isWarnable ? pill('warn', isAskable ? 'secondary' : 'primary', `${sentSiblings ? '↻' : '✉'} ${others.length}`, () => warnSiblings($, others, v)) : null}
+        {isAskable && base ? pill('ask', 'primary', sent ? '↻ base' : 'base', () => askBase($, base, v)) : null}
+        {pill('detail', 'secondary', '▤', () => togglePane($))}
+        {pill('hide', 'secondary', '✕', () => update($, isHidden, () => true))}
       </Box>
     )
   })
@@ -463,7 +470,6 @@ export const register: Register = on => {
     const view = chosen ?? defaultView(e.surface)
     const theme = ((await read($, themeAtom)) as ClotureTheme) ?? 'auto'
     const pal = palette(theme)
-    const themeNow = THEMES.find(x => x.id === theme) ?? THEMES[0]!
 
     // The theme paints the whole pane (page background and cards), not only the text colours.
     const frame = (children: unknown) => (
@@ -471,20 +477,25 @@ export const register: Register = on => {
         {children}
       </Box>
     )
-    const refreshButton = <Button key="refresh" label={busy ? '…' : '↻'} onPress={() => loadOverview($)} />
+    const refreshButton = (c: string | undefined) => (
+      <Box key="refresh" hover={{ scope: 'h-refresh-btn' }}>
+        <Button key="refresh" plain onPress={() => loadOverview($)}>
+          <Text bold color={c}>{busy ? '…' : '↻'}</Text>
+        </Button>
+      </Box>
+    )
     if (!o) {
       return frame(
         <Box flexDirection="column" gap={1}>
           <Text bold color={pal.text}>Clôture des sessions</Text>
           <Text dimColor={!pal.dim} color={pal.dim}>{busy ? 'Lecture de l’état des dépôts (environ 7 s)…' : 'Aucune lecture pour le moment.'}</Text>
           {note ? <Text color={pal.stop}>✗ {note.text}</Text> : null}
-          {refreshButton}
+          {refreshButton(pal.text)}
         </Box>,
       )
     }
 
     const a = answer(o)
-    const color = pal[a.tone]
     const when = new Date(o.at).toTimeString().slice(0, 8)
     const stale = isStale(o.at, nowMs)
     const repoButtons = (r: ClotureRepo) => {
@@ -496,96 +507,95 @@ export const register: Register = on => {
       )
       return [
         canPush(r) ? back(`push-${r.name}`, (
-          <Button key={`push-${r.name}`} plain label={armedRepo === r.path ? `✓ pousser ${r.ah} commit${r.ah > 1 ? 's' : ''} ?` : `↑ ${r.ah} commit${r.ah > 1 ? 's' : ''}`} onPress={() => pushRepo($, r)}>
-            <Text bold color={armedRepo === r.path ? pal.ok : pal.warn}>{armedRepo === r.path ? `✓ pousser ${r.ah} commit${r.ah > 1 ? 's' : ''} ?` : `↑ ${r.ah} commit${r.ah > 1 ? 's' : ''}`}</Text>
+          <Button key={`push-${r.name}`} plain onPress={() => pushRepo($, r)}>
+            <Text bold color={armedRepo === r.path ? pal.ok : pal.warn}>{armedRepo === r.path ? `✓ confirmer l’envoi de ${r.ah} commit${r.ah > 1 ? 's' : ''} ?` : `↑ envoyer ${r.ah} commit${r.ah > 1 ? 's' : ''}`}</Text>
           </Button>
         ), armedRepo === r.path ? pal.ok : pal.warn) : null,
         r.tone === 'stop' && others > 0 ? back(`warn-${r.name}`, (
-          <Button key={`warn-${r.name}`} plain label={`✉ ${others} session${others > 1 ? 's' : ''}`} onPress={() => warnRepo($, r)}>
-            <Text bold color={pal.stop}>{`✉ ${others} session${others > 1 ? 's' : ''}`}</Text>
+          <Button key={`warn-${r.name}`} plain onPress={() => warnRepo($, r)}>
+            <Text bold color={pal.stop}>{`✉ prévenir ${others} session${others > 1 ? 's' : ''}`}</Text>
           </Button>
         ), pal.stop) : null,
       ]
     }
-    // Icon-only buttons; each one's label is a hidden Text shown on hover (scope h-<id>) in the row below.
-    const tools = [
-      ...(a.generated > 0
-        ? [{
-            id: 'commit',
-            label: armed ? 'Appuie encore pour confirmer le commit' : 'Commiter les fichiers régénérés',
-            button: (
-              <Button
-                key="commit"
-                variant={armed ? 'primary' : 'secondary'}
-                label={armed ? `✓ ${a.generated}` : `⤓ ${a.generated}`}
-                onPress={() => commitGenerated($, o)}
-              />
-            ),
-          }]
-        : []),
-      ...VIEWS.map(v => ({
-        id: `view-${v.id}`,
-        label: `Affichage : ${v.label}`,
-        button: <Button key={`view-${v.id}`} variant={v.id === view ? 'primary' : 'secondary'} label={v.icon} onPress={() => update($, viewAtom, () => v.id)} />,
-      })),
-      { id: 'theme', label: `Thème : ${themeNow.label} (cliquer pour changer)`, button: <Button key="theme" label={themeNow.icon} onPress={() => update($, themeAtom, t => nextTheme(t as ClotureTheme))} /> },
-      { id: 'refresh', label: 'Actualiser', button: refreshButton },
-      { id: 'close', label: 'Fermer le panneau', button: <Button key="close" label="✕" onPress={() => $.ui.close({ id: PANE })} /> },
-    ]
+    const hero = BAND_BG[a.tone]
+    // One segment control per group; each cell carries a hover scope that reveals its help line below.
+    const cell = (id: string, label: string, active: boolean, key: string, glyph: string, onPress: () => void) => ({
+      id,
+      label,
+      node: (
+        <Box key={`k-${id}`} hover={{ scope: `h-${id}` }} paddingX={1}>
+          <Button key={key} plain onPress={onPress}>
+            <Text bold={active} underline={active} color={active ? pal[a.tone] : pal.dim ?? pal.text}>{glyph}</Text>
+          </Button>
+        </Box>
+      ),
+    })
+    const viewCells = VIEWS.map(v => cell(`view-${v.id}`, `Affichage : ${v.label}`, v.id === view, `view-${v.id}`, v.icon, () => update($, viewAtom, () => v.id)))
+    const themeCells = THEMES.map(th => cell(`theme-${th.id}`, `Thème : ${th.label}`, th.id === theme, `theme-${th.id}`, th.icon, () => update($, themeAtom, () => th.id)))
+    const commitCell = a.generated > 0
+      ? [cell('commit', armed ? 'Appuie encore pour confirmer le commit' : 'Commiter les fichiers régénérés', armed, 'commit', armed ? `✓ ${a.generated}` : `⤓ ${a.generated}`, () => commitGenerated($, o))]
+      : []
+    const helps = [...commitCell, ...viewCells, ...themeCells, { id: 'refresh', label: 'Actualiser', node: null }, { id: 'close', label: 'Fermer le panneau', node: null }]
+    const segment = (cells: { node: unknown }[]) => (
+      <Box borderStyle="round" borderColor={pal.dim ?? pal.text ?? pal.ok} backgroundColor={pal.card}>
+        {cells.map(c => c.node)}
+      </Box>
+    )
     const shown = o.repos.filter(r => r.tone !== 'ok')
     return frame(
       <Box flexDirection="column" gap={1}>
-        <Text color={stale ? pal.warn : pal.dim} dimColor={!stale && !pal.dim}>
-          Lu {ageLabel(o.at, nowMs)} ({when}) : {o.repos.reduce((n, r) => n + r.ns, 0)} session(s), {o.repos.length} dépôt(s){stale ? ' · lecture ancienne, ↻ pour relire' : ''}
-        </Text>
-        <Box flexDirection="column" borderStyle="round" borderColor={color} backgroundColor={pal.card} paddingX={1}>
-          <Text color={color} bold>{a.headline}   {ring(a.readyCount, a.total)}</Text>
-          <Text dimColor={!pal.dim} color={pal.dim}>{a.detail}</Text>
+        <Box flexDirection="column" paddingX={1} backgroundColor={hero}>
+          <Box justifyContent="space-between">
+            <Text bold color="white">Clôture des sessions</Text>
+            <Box gap={1} hover={{ scope: 'h-refresh' }}>
+              {refreshButton('white')}
+              <Box hover={{ scope: 'h-close' }}>
+                <Button key="close" plain onPress={() => $.ui.close({ id: PANE })}>
+                  <Text bold color="white">✕</Text>
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+          <Text bold color="white">{a.headline}</Text>
+          <Text color="white">{ring(a.readyCount, a.total)}</Text>
+          <Text color="white">{a.detail}</Text>
           {a.checks.map(c => (
-            <Text color={c.ok ? pal.ok : pal.stop}>{c.ok ? '✓' : '✕'} {c.text}</Text>
+            <Text color="white">{c.ok ? '✓' : '✕'} {c.text}</Text>
           ))}
-          <Text color={pal.text}>
+          <Text color="white">
             <Text bold>Prochaine action : </Text>
             {a.next}
           </Text>
         </Box>
+        <Text color={stale ? pal.warn : pal.dim} dimColor={!stale && !pal.dim}>
+          Lu {ageLabel(o.at, nowMs)} ({when}) : {plural(o.repos.reduce((n, r) => n + r.ns, 0), 'session ouverte', 'sessions ouvertes')} dans {plural(o.repos.length, 'dépôt', 'dépôts')}{stale ? ' · lecture ancienne, ↻ pour relire' : ''}
+        </Text>
         <Box gap={1}>
-          {tools.map(t => (
-            <Box key={`k-${t.id}`} hover={{ scope: `h-${t.id}` }} borderStyle="round" borderColor={pal.dim ?? pal.text ?? pal.ok} backgroundColor={pal.card} paddingX={1}>
-              {t.button}
-            </Box>
-          ))}
+          {commitCell.length > 0 ? segment(commitCell) : null}
+          {segment(viewCells)}
+          {segment(themeCells)}
         </Box>
         <Box height={1}>
-          {tools.map(t => (
+          {helps.map(t => (
             <Box key={`l-${t.id}`} display="none" hover={{ scope: `h-${t.id}`, display: 'flex' }}>
-              <Text dimColor={!pal.dim} color={pal.dim}>{t.label}</Text>
+              <Text color={pal.text}>{t.label}</Text>
             </Box>
           ))}
         </Box>
-        {note ? <Text color={note.ok ? pal.ok : pal.stop}>{note.ok ? '✓' : '✗'} {note.text}</Text> : null}
+        <Text dimColor={!pal.dim} color={pal.dim}>✎ fichiers modifiés à sauver · ↑ commits à envoyer · ✉ autres sessions à prévenir</Text>
+        {note ? <Text color="white" bold>{note.ok ? '✓' : '✗'} {note.text}</Text> : null}
         <Box flexDirection="column" borderStyle="round" borderColor={pal.text} backgroundColor={pal.card} paddingX={1}>
           <Text bold color={pal.text}>Détail · {shown.length === 0 ? 'rien à traiter' : `${shown.length} dépôt(s) à traiter`}</Text>
         {shown.length === 0 ? (
           <Text color={pal.ok}>✓ Tous les dépôts sont propres et poussés.</Text>
-        ) : view === 'cartes' ? (
-          <Box gap={1} flexWrap="wrap">
-            {shown.map(r => (
-              <Box key={`c-${r.path}`} flexDirection="column" borderStyle="round" borderColor={pal[r.tone]} backgroundColor={pal.bg} paddingX={1}>
-                <Text bold color={pal.text}>{r.name}</Text>
-                <Text color={pal.text}>{counts(r)}</Text>
-                <Text dimColor={!pal.dim} color={pal.dim}>{r.ns} session(s)</Text>
-                <Box gap={1}>{repoButtons(r)}</Box>
-              </Box>
-            ))}
-          </Box>
         ) : (
           <Box flexDirection="column">
             {shown.map(r => (
               <Box key={`r-${r.path}`} flexDirection="column">
                 <Box gap={1}>
                   <Text color={pal[r.tone]}>
-                    {r.tone === 'ok' ? '✓' : r.tone === 'stop' ? '✕' : '!'} {r.name} · {counts(r)}
+                    {r.tone === 'ok' ? '✓' : r.tone === 'stop' ? '✕' : '!'} <Text bold color={pal.text}>{r.name}</Text> · {counts(r)}
                   </Text>
                   {repoButtons(r)}
                 </Box>
@@ -595,7 +605,7 @@ export const register: Register = on => {
                       <Text dimColor={!pal.dim} color={pal.dim}>{f}</Text>
                     ))}
                     {r.nb > r.files.length ? <Text dimColor={!pal.dim} color={pal.dim}>… et {r.nb - r.files.length} autre(s)</Text> : null}
-                    <Text dimColor={!pal.dim} color={pal.dim}>{r.ns} session(s) : {r.sessions.slice(0, 3).join(', ')}</Text>
+                    <Text dimColor={!pal.dim} color={pal.dim}>{r.ns} session(s) : <Text bold color={pal.text}>{r.sessions.slice(0, 3).join(', ')}</Text></Text>
                   </Box>
                 ) : null}
               </Box>

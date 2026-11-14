@@ -19,7 +19,7 @@ export type ClotureNote = { ok: boolean; text: string }
 
 export type ClotureTone = 'ok' | 'stop' | 'warn'
 
-export type ClotureView = 'depliant' | 'liste' | 'cartes'
+export type ClotureView = 'depliant' | 'liste'
 
 export type ClotureTheme = 'auto' | 'clair' | 'sombre'
 
