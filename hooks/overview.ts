@@ -2,6 +2,28 @@ import type { ClotureOverview, ClotureRepo, ClotureTheme, ClotureTone, ClotureVi
 
 const MAX_FILES = 8
 
+export const normRepo = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+
+// Per-repo switches read from the rules file (~/.claude/cloture_rules.json), never hard-coded here:
+//   "auto_sync": true              the repo commits what the sessions write by itself (a Stop-hook sync); its pending files are
+//                                  transient, so they are not work to save and nobody is warned about them.
+//   "auto_commit_generated": true  its generated/evidence files are committed by pathspec at the end of a turn.
+export type AutoRules = { sync: Set<string>; generated: string[] }
+
+export function parseAutoRules(text: string): AutoRules {
+  const out: AutoRules = { sync: new Set(), generated: [] }
+  try {
+    const repos = (JSON.parse(text.replace(/^\uFEFF/, '')) as { repos?: Record<string, { auto_sync?: boolean; auto_commit_generated?: boolean }> }).repos ?? {}
+    for (const [path, r] of Object.entries(repos)) {
+      if (r?.auto_sync === true) out.sync.add(normRepo(path))
+      if (r?.auto_commit_generated === true) out.generated.push(path)
+    }
+  } catch {
+    // No readable rules: nothing is automatic.
+  }
+  return out
+}
+
 // Icon-only buttons keep the pane compact; the active view is named in a dim line beside them.
 export const VIEWS: readonly { id: ClotureView; label: string; icon: string }[] = [
   { id: 'depliant', label: 'Dépliant', icon: '▾' },
@@ -51,8 +73,8 @@ function repoTone(r: Pick<ClotureRepo, 'nb' | 'ah' | 'upstream'>): ClotureTone {
   return r.ah > 0 || !r.upstream ? 'warn' : 'ok'
 }
 
-// Output of `cloture_check.py --sessions FILE --json`, flattened like the Angela /cloture page does.
-export function parseOverview(stdout: string, now: number): ClotureOverview | null {
+// Output of `cloture_check.py --sessions FILE --json`, flattened like the /cloture web page does.
+export function parseOverview(stdout: string, now: number, autoSync: ReadonlySet<string> = new Set()): ClotureOverview | null {
   let raw: Raw
   try {
     raw = JSON.parse(stdout) as Raw
@@ -63,17 +85,21 @@ export function parseOverview(stdout: string, now: number): ClotureOverview | nu
   const repos: ClotureRepo[] = []
   for (const r of raw.repos) {
     if (r.error || !r.sessions || r.sessions.length === 0) continue
+    const name = r.repo.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? r.repo
+    const isAuto = autoSync.has(normRepo(r.repo))
+    const pending = (r.blocking ?? []).length
     const item = {
-      name: r.repo.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? r.repo,
+      name,
       path: r.repo,
-      nb: (r.blocking ?? []).length,
+      nb: isAuto ? 0 : pending,
+      auto: isAuto ? pending : 0,
       gen: (r.generated ?? []).length,
       fo: (r.foreign ?? []).length,
       ah: Number(r.ahead) || 0,
       ns: r.sessions.length,
       jobs: (r.jobs ?? []).length,
       upstream: Boolean(r.upstream),
-      files: (r.blocking ?? []).slice(0, MAX_FILES),
+      files: isAuto ? [] : (r.blocking ?? []).slice(0, MAX_FILES),
       sessions: r.sessions.map(s => s.title || (s.id ?? '').slice(0, 8)),
       sessionIds: r.sessions.map(s => s.id ?? '').filter(Boolean),
     }
@@ -139,6 +165,7 @@ export function ring(ready: number, total: number, width = 10): string {
 export function counts(r: ClotureRepo): string {
   const bits: string[] = []
   if (r.nb > 0) bits.push(`${plural(r.nb, 'fichier', 'fichiers')} à sauver`)
+  if ((r.auto ?? 0) > 0) bits.push(`${plural(r.auto ?? 0, 'fichier', 'fichiers')} commité(s) automatiquement`)
   if (r.ah > 0) bits.push(`${plural(r.ah, 'commit', 'commits')} à envoyer`)
   if (!r.upstream) bits.push('aucun distant')
   if (bits.length === 0) bits.push('propre et poussé')

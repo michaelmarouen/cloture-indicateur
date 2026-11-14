@@ -35,6 +35,8 @@ export type ClotureRepo = {
   jobs: number
   upstream: boolean
   files: string[]
+  // Files a repo commits by itself (its Stop-hook sync): shown, never counted as work to save.
+  auto?: number
   sessions: string[]
   sessionIds: string[]
 }

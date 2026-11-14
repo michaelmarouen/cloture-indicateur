@@ -31,14 +31,12 @@ function seed(values: Record<string, unknown>) {
   return (_: unknown, e: { key: string }) => ({ value: { value: values[e.key], version: 1 } })
 }
 
-test('pane shows the answer, 3 checks, the next action and the 4 view buttons', async ($, on) => {
+test('pane shows the verdict, the next action and the view buttons (no text summary above the detail)', async ($, on) => {
   setup(on, { overview, view: null, isOverviewBusy: false, isArmed: false, overviewNote: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
 
-  expect(await ui.find({ type: 'Text', text: /1 dépôt prêt sur 3/ })).toBeTruthy()
-  expect(await ui.find({ type: 'Text', text: /2 fichiers à sauver dans 1 dépôt/ })).toBeTruthy()
-  expect(await ui.find({ type: 'Text', text: /1 commit pas encore poussé/ })).toBeTruthy()
-  expect(await ui.find({ type: 'Text', text: /Aucun job lourd en cours/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /Non, pas encore/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /1 dépôt prêt sur 3/ })).toBeFalsy()
   expect(await ui.find({ type: 'Text', text: /heretic : 2 fichiers à commiter ou écarter, dont pyproject.toml/ })).toBeTruthy()
   for (const id of ['depliant', 'liste']) {
     expect(await ui.find({ type: 'Button', key: `view-${id}` })).toBeTruthy()
@@ -121,12 +119,11 @@ test('each icon button has its label ready for the hover (hidden Text, no label 
   await ui.unmount()
 })
 
-test('repos that are clean and pushed are not listed (only counted in the gauge)', async ($, on) => {
+test('repos that are clean and pushed are not listed ', async ($, on) => {
   setup(on, { overview, view: 'liste', theme: 'auto', isOverviewBusy: false, isArmed: false, overviewNote: null })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /heretic · 2 fichiers à sauver/ })).toBeTruthy()
   expect(await ui.find({ type: 'Text', text: /tradeManager/ })).toBeFalsy()
-  expect(await ui.find({ type: 'Text', text: /1 dépôt prêt sur 3/ })).toBeTruthy()
   await ui.unmount()
 })
 

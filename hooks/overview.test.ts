@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { THEMES, VIEWS, ageLabel, answer, becameReady, canPush, counts, defaultView, isStale, nextTheme, palette, parseOverview, ring, statusText } from './overview'
+import { THEMES, normRepo, parseAutoRules, VIEWS, ageLabel, answer, becameReady, canPush, counts, defaultView, isStale, nextTheme, palette, parseOverview, ring, statusText } from './overview'
 
 const P = (s: string) => s.split('/').join(String.fromCharCode(92))
 
@@ -21,6 +21,23 @@ test('parseOverview flattens, drops repos without session or in error, sorts sto
   expect(o?.repos.map(r => r.tone)).toEqual(['stop', 'warn', 'ok'])
   expect(o?.repos[0]).toMatchObject({ nb: 2, gen: 1, ah: 1, files: ['pyproject.toml', 'uv.lock'] })
   expect(o?.repos[1]?.sessions).toEqual(['s2'])
+})
+
+test('a repo that commits by itself has pending files shown but never counted as work to save', () => {
+  const j = JSON.stringify({ repos: [{ repo: P('D:/work/notes-repo'), verdict: 'NON_COMMITE', blocking: ['a.md', 'b.md'], generated: [], foreign: [], ahead: 0, upstream: 'origin/master', sessions: [{ id: 'm1', title: 'notes' }], jobs: [] }], processus_lus: true })
+  const r = parseOverview(j, 1, new Set([normRepo('D:/work/notes-repo')]))?.repos[0]
+  expect(parseOverview(j, 1)?.repos[0]).toMatchObject({ nb: 2, auto: 0, tone: 'stop' })
+  expect(r).toMatchObject({ nb: 0, auto: 2, tone: 'ok', files: [] })
+  expect(counts(r!)).toContain('2 fichiers commité(s) automatiquement')
+})
+
+test('auto switches come from the rules file, per repo, and nothing is automatic without them', () => {
+  const rules = parseAutoRules(JSON.stringify({ repos: { 'D:/x/A': { auto_sync: true }, 'D:/x/B': { auto_commit_generated: true }, 'D:/x/C': {} } }))
+  expect([...rules.sync]).toEqual(['d:/x/a'])
+  expect(rules.generated).toEqual(['D:/x/B'])
+  const none = parseAutoRules('not json')
+  expect(none.sync.size).toBe(0)
+  expect(none.generated).toEqual([])
 })
 
 test('parseOverview refuses garbage', () => {
