@@ -312,11 +312,11 @@ async function pushRepo($: EngineInterface, r: ClotureRepo) {
   try {
     const res = await $.process.run(['git', '-C', r.path, 'push'], { timeoutMs: 60000 })
     const detail = (res.stderr || res.stdout).trim().split('\n').pop()?.trim().slice(0, 100) ?? ''
+    await loadOverview($)
     await update($, overviewNote, () => ({ ok: res.exitCode === 0, text: `${r.name} : ${res.exitCode === 0 ? 'poussé' : `refusé (${detail})`}` }))
   } catch (err) {
     await update($, overviewNote, () => ({ ok: false, text: `${r.name} : push impossible (${err instanceof Error ? err.message : 'erreur'})` }))
   }
-  void loadOverview($)
 }
 
 // Warn the other sessions of one repo (the message is the same one the band sends).
